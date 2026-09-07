@@ -4,6 +4,7 @@ const rateLimit = require("express-rate-limit");
 const crypto = require("crypto");
 const { Pool } = require("pg");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -22,6 +23,21 @@ const pool = new Pool({
     ? { rejectUnauthorized: false }
     : false
 });
+
+// تهيئة جداول قاعدة البيانات تلقائياً عند التشغيل
+async function initDb() {
+  try {
+    const schemaPath = path.join(__dirname, "schema.sql");
+    if (fs.existsSync(schemaPath)) {
+      const sql = fs.readFileSync(schemaPath, "utf8");
+      await pool.query(sql);
+      console.log("Database schema initialized successfully.");
+    }
+  } catch (err) {
+    console.error("Error initializing database schema:", err);
+  }
+}
+initDb();
 
 app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
@@ -96,7 +112,14 @@ function sameOrigin(req, res, next) {
 }
 
 app.use(sameOrigin);
-app.use(express.static(path.join(__dirname, "public")));
+
+// تقديم الملفات الثابتة من المجلد الرئيسي للمشروع
+app.use(express.static(__dirname));
+
+// إعادة توجيه الصفحة الرئيسية مباشرة إلى صفحة تسجيل الدخول
+app.get("/", (req, res) => {
+  res.redirect("/login.html");
+});
 
 app.post("/api/enter", authLimiter, async (req, res, next) => {
   try {
