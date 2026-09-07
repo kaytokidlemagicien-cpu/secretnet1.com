@@ -4,30 +4,12 @@ const rateLimit = require("express-rate-limit");
 const crypto = require("crypto");
 const { Pool } = require("pg");
 const path = require("path");
-const fs = require("fs");
-const multer = require("multer");
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
 
 const SITE_PASSWORD = process.env.SITE_PASSWORD || "Boss2026";
 const COOKIE_SECRET = process.env.COOKIE_SECRET || "CHANGE_THIS_SECRET";
-
-// إعداد مجلد رفع الملفات تلقائياً
-const uploadDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// إعداد Multer لرفع الملفات
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -76,11 +58,9 @@ initDb();
 
 app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
-// إتاحة الوصول للملفات المرفوعة
-app.use("/uploads", express.static(uploadDir));
 app.use(express.static(__dirname));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30 });
@@ -184,16 +164,17 @@ app.get("/api/posts", requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// نشر منشور مع ملف/صورة
-app.post("/api/posts", writeLimiter, requireAuth, upload.single("file"), async (req, res, next) => {
+// نشر منشور مع صورة/ملف عبر JSON بدون أخطاء السيرفر
+app.post("/api/posts", writeLimiter, requireAuth, async (req, res, next) => {
   try {
     const body = String(req.body?.body || "").trim();
-    const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
-    if (!body && !fileUrl) return res.status(400).json({ error: "اكتب منشورًا أو أضف ملفًا." });
+    const fileData = req.body?.fileData || null;
+
+    if (!body && !fileData) return res.status(400).json({ error: "اكتب منشورًا أو أضف صورة." });
 
     const { rows } = await pool.query(
       "INSERT INTO posts(author_id, body, file_url) VALUES($1, $2, $3) RETURNING id",
-      [req.user.id, body, fileUrl]
+      [req.user.id, body, fileData]
     );
     res.json({ ok: true, id: rows[0].id });
   } catch (e) { next(e); }
@@ -203,7 +184,7 @@ app.post("/api/posts", writeLimiter, requireAuth, upload.single("file"), async (
 app.post("/api/posts/:id/comments", writeLimiter, requireAuth, async (req, res, next) => {
   try {
     const body = String(req.body?.body || "").trim();
-    if (!body || body.length > 250) return res.status(400).json({ error: "التعليق غير صالح." });
+    if (!body || body.length > 300) return res.status(400).json({ error: "التعليق غير صالح." });
     await pool.query(
       "INSERT INTO comments(post_id, author_id, body) VALUES($1, $2, $3)",
       [Number(req.params.id), req.user.id, body]
