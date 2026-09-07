@@ -3,69 +3,94 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SocialNet - الرئيسية</title>
+  <title>SocialNet</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background-color: #f0f2f5; color: #1c1e21; }
-    header { background: white; border-bottom: 1px solid #e5e7eb; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; sticky: top; }
-    .logo { font-size: 22px; font-weight: bold; color: #4f46e5; }
-    .nav { display: flex; gap: 10px; margin: 15px 0; justify-content: center; }
-    .nav a { text-decoration: none; padding: 8px 16px; border-radius: 8px; color: #4b5563; font-weight: 500; }
-    .nav a.active { background: #e0e7ff; color: #4f46e5; }
-    .container { max-width: 600px; margin: 0 auto; padding: 0 10px 40px; }
-    .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    textarea, input[type="text"] { width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; font-size: 14px; margin-bottom: 10px; outline: none; }
-    textarea { resize: vertical; min-height: 80px; }
-    .file-input-wrapper { margin-bottom: 10px; }
-    .btn { background: #4f46e5; color: white; border: none; border-radius: 8px; padding: 10px 16px; font-weight: 600; cursor: pointer; width: 100%; }
-    .btn:hover { background: #4338ca; }
-    .post-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; color: #6b7280; }
-    .post-author { font-weight: bold; color: #111827; font-size: 15px; }
-    .post-body { font-size: 15px; margin-bottom: 10px; white-space: pre-wrap; }
-    .post-file { max-width: 100%; border-radius: 8px; margin-top: 8px; }
-    .comments-section { border-top: 1px solid #f3f4f6; margin-top: 12px; padding-top: 12px; }
-    .comment { background: #f9fafb; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; font-size: 13px; }
-    .comment-author { font-weight: bold; color: #374151; margin-bottom: 2px; }
-    .comment-form { display: flex; gap: 8px; margin-top: 8px; }
-    .comment-form input { margin-bottom: 0; }
-    .btn-sm { width: auto; padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #f4f6f9; color: #333; }
+
+    /* الهيدر العلوي الأصلي */
+    header { background: #fff; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eef0f4; }
+    .logo { font-size: 24px; font-weight: 800; color: #4f46e5; }
+    .user-info { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: bold; }
+    .btn-logout { background-color: #eef2ff; color: #4f46e5; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; }
+
+    /* القائمة العلوية الأصلية */
+    .nav-bar { display: flex; justify-content: center; gap: 10px; margin: 20px 0; }
+    .nav-item { padding: 10px 18px; border-radius: 10px; background: #fff; color: #555; text-decoration: none; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+    .nav-item.active { background: #e0e7ff; color: #4f46e5; font-weight: bold; }
+
+    /* Container */
+    .main-container { max-width: 680px; margin: 0 auto; padding: 0 15px 50px; }
+
+    /* كروت المنشورات وإنشاء المنشور */
+    .card { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+    textarea { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; font-size: 14px; outline: none; resize: none; min-height: 90px; margin-bottom: 12px; }
+    
+    /* حقل رفع الملف بنفس تصميم المدخل الأصلي */
+    .file-input-box { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #6b7280; margin-bottom: 12px; background: #fafafa; display: flex; align-items: center; justify-content: space-between; }
+    .file-input-box input[type="file"] { font-size: 13px; }
+
+    .btn-primary { width: 100%; background: #4f46e5; color: white; border: none; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: bold; cursor: pointer; }
+    .btn-primary:hover { background: #4338ca; }
+
+    /* عرض المنشورات */
+    .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .post-author-box { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 15px; }
+    .post-time { font-size: 12px; color: #9ca3af; }
+    .post-content { font-size: 15px; line-height: 1.5; color: #1f2937; margin-bottom: 12px; }
+    .post-img { max-width: 100%; border-radius: 10px; margin-bottom: 12px; }
+    .post-divider { border-top: 1px solid #f3f4f6; margin: 12px 0; }
+
+    /* التعليقات */
+    .comment-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .comment-item { background: #f9fafb; border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+    .comment-user { font-weight: bold; color: #374151; margin-bottom: 2px; }
+    
+    .comment-form { display: flex; gap: 8px; }
+    .comment-input { flex: 1; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; }
+    .btn-comment { background: #4f46e5; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: bold; cursor: pointer; }
   </style>
 </head>
 <body>
 
+  <!-- الهيدر الأصلي -->
   <header>
-    <div class="logo">SocialNet</div>
-    <div>
-      <span id="userGreeting"></span>
-      <button onclick="logout()" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; margin-right:10px;">خروج</button>
+    <div class="user-info">
+      <button onclick="logout()" class="btn-logout">خروج</button>
+      <span>👋 مرحبًا، <strong id="usernameDisplay">...</strong></span>
     </div>
+    <div class="logo">SocialNet</div>
   </header>
 
-  <div class="container">
-    <div class="nav">
-      <a href="index.html" class="active">🏠 الرئيسية</a>
+  <div class="main-container">
+    <!-- القائمة العلوية الأصلية -->
+    <div class="nav-bar">
+      <a href="#" class="nav-item">👤 ملفي</a>
+      <a href="#" class="nav-item">💬 الرسائل</a>
+      <a href="#" class="nav-item">👥 الأصدقاء</a>
+      <a href="index.html" class="nav-item active">🏠 الرئيسية</a>
     </div>
 
     <!-- كارت إنشاء منشور -->
     <div class="card">
       <textarea id="postBody" placeholder="بماذا تفكر؟"></textarea>
-      <div class="file-input-wrapper">
-        <label style="font-size: 13px; color: #6b7280; display:block; margin-bottom:4px;">إرفاق صورة أو ملف:</label>
+      <div class="file-input-box">
+        <span>إرفاق ملف / صورة (اختياري):</span>
         <input type="file" id="postFile" accept="image/*,video/*,.pdf,.doc,.docx">
       </div>
-      <button onclick="createPost()" class="btn">نشر</button>
+      <button onclick="createPost()" class="btn-primary">نشر</button>
     </div>
 
     <!-- قائمة المنشورات -->
-    <div id="postsList"></div>
+    <div id="postsFeed"></div>
   </div>
 
   <script>
-    async function checkUser() {
+    async function init() {
       const res = await fetch('/api/me');
       if (!res.ok) { location.href = '/login.html'; return; }
       const data = await res.json();
-      document.getElementById('userGreeting').innerText = 'مرحباً، ' + data.user.name;
+      document.getElementById('usernameDisplay').innerText = data.user.name;
       loadPosts();
     }
 
@@ -78,24 +103,23 @@
       const res = await fetch('/api/posts');
       if (!res.ok) return;
       const data = await res.json();
-      const container = document.getElementById('postsList');
-      container.innerHTML = '';
+      const feed = document.getElementById('postsFeed');
+      feed.innerHTML = '';
 
       data.posts.forEach(post => {
-        let fileHtml = '';
+        let fileContent = '';
         if (post.file_url) {
-          const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(post.file_url);
-          if (isImage) {
-            fileHtml = `<img src="${post.file_url}" class="post-file" />`;
+          if (/\.(jpg|jpeg|png|gif|webp)$/i.test(post.file_url)) {
+            fileContent = `<img src="${post.file_url}" class="post-img" />`;
           } else {
-            fileHtml = `<div style="margin-top:8px;"><a href="${post.file_url}" target="_blank" style="color:#4f46e5; text-decoration:underline;">📁 فتح/تحميل الملف المرفق</a></div>`;
+            fileContent = `<div style="margin-bottom:12px;"><a href="${post.file_url}" target="_blank" style="color:#4f46e5; font-size:14px; text-decoration:underline;">📎 فتح الملف المرفق</a></div>`;
           }
         }
 
         let commentsHtml = (post.comments || []).map(c => `
-          <div class="comment">
-            <div class="comment-author">${escapeHtml(c.author)}</div>
-            <div>${escapeHtml(c.body)}</div>
+          <div class="comment-item">
+            <div class="comment-user">${escape(c.author)}</div>
+            <div>${escape(c.body)}</div>
           </div>
         `).join('');
 
@@ -103,21 +127,24 @@
         card.className = 'card';
         card.innerHTML = `
           <div class="post-header">
-            <span class="post-author">${escapeHtml(post.author)}</span>
-            <span>${new Date(post.created_at).toLocaleString('ar')}</span>
-          </div>
-          <div class="post-body">${escapeHtml(post.body)}</div>
-          ${fileHtml}
-          
-          <div class="comments-section">
-            <div id="comments-${post.id}">${commentsHtml}</div>
-            <div class="comment-form">
-              <input type="text" id="input-${post.id}" placeholder="اكتب تعليقاً..." />
-              <button onclick="sendComment(${post.id})" class="btn btn-sm">إرسال</button>
+            <span class="post-time">${new Date(post.created_at).toLocaleString('ar')}</span>
+            <div class="post-author-box">
+              <span>${escape(post.author)}</span>
+              👤
             </div>
           </div>
+          <div class="post-content">${escape(post.body)}</div>
+          ${fileContent}
+          <div class="post-divider"></div>
+          
+          <div class="comment-list">${commentsHtml}</div>
+          
+          <div class="comment-form">
+            <button onclick="sendComment(${post.id})" class="btn-comment">إرسال</button>
+            <input type="text" id="comm-input-${post.id}" class="comment-input" placeholder="اكتب تعليقًا..." />
+          </div>
         `;
-        container.appendChild(card);
+        feed.appendChild(card);
       });
     }
 
@@ -125,10 +152,7 @@
       const body = document.getElementById('postBody').value;
       const fileInput = document.getElementById('postFile');
 
-      if (!body.trim() && !fileInput.files[0]) {
-        alert('اكتب نصاً أو اختر ملفاً للنشر!');
-        return;
-      }
+      if (!body.trim() && !fileInput.files[0]) return;
 
       const formData = new FormData();
       formData.append('body', body);
@@ -136,46 +160,36 @@
         formData.append('file', fileInput.files[0]);
       }
 
-      const res = await fetch('/api/posts', {
-        method: 'POST',
-        body: formData
-      });
-
+      const res = await fetch('/api/posts', { method: 'POST', body: formData });
       if (res.ok) {
         document.getElementById('postBody').value = '';
         fileInput.value = '';
         loadPosts();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'حدث خطأ أثناء النشر');
       }
     }
 
     async function sendComment(postId) {
-      const input = document.getElementById(`input-${postId}`);
-      const text = input.value.trim();
-      if (!text) return;
+      const input = document.getElementById(`comm-input-${postId}`);
+      const body = input.value.trim();
+      if (!body) return;
 
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: text })
+        body: JSON.stringify({ body })
       });
 
       if (res.ok) {
         input.value = '';
         loadPosts();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'فشل إرسال التعليق');
       }
     }
 
-    function escapeHtml(str) {
+    function escape(str) {
       return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    checkUser();
+    init();
   </script>
 </body>
 </html>
