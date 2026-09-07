@@ -3,7 +3,6 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const crypto = require("crypto");
 const { Pool } = require("pg");
-const path = require("path");
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -18,7 +17,6 @@ const pool = new Pool({
     : false
 });
 
-// إنشاء الجداول تلقائياً
 async function initDb() {
   try {
     await pool.query(`
@@ -49,18 +47,17 @@ async function initDb() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
-    console.log("Database schema ready.");
+    console.log("DB Ready");
   } catch (err) {
-    console.error("DB init error:", err);
+    console.error("DB Error:", err);
   }
 }
 initDb();
 
 app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use(express.json({ limit: "15mb" }));
-app.use(express.urlencoded({ extended: true, limit: "15mb" }));
-
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(express.static(__dirname));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30 });
@@ -164,27 +161,30 @@ app.get("/api/posts", requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// نشر منشور مع صورة/ملف عبر JSON بدون أخطاء السيرفر
+// نشر منشور جديد (يستقبل رابط الصورة أو نص المنشور)
 app.post("/api/posts", writeLimiter, requireAuth, async (req, res, next) => {
   try {
     const body = String(req.body?.body || "").trim();
-    const fileData = req.body?.fileData || null;
+    const imageUrl = String(req.body?.imageUrl || "").trim();
 
-    if (!body && !fileData) return res.status(400).json({ error: "اكتب منشورًا أو أضف صورة." });
+    if (!body && !imageUrl) {
+      return res.status(400).json({ error: "يرجى كتابة نص أو وضع رابط صورة." });
+    }
 
     const { rows } = await pool.query(
       "INSERT INTO posts(author_id, body, file_url) VALUES($1, $2, $3) RETURNING id",
-      [req.user.id, body, fileData]
+      [req.user.id, body, imageUrl || null]
     );
     res.json({ ok: true, id: rows[0].id });
   } catch (e) { next(e); }
 });
 
-// إرسال تعليق
+// إرسال تعليق (مصلح بالكامل)
 app.post("/api/posts/:id/comments", writeLimiter, requireAuth, async (req, res, next) => {
   try {
     const body = String(req.body?.body || "").trim();
-    if (!body || body.length > 300) return res.status(400).json({ error: "التعليق غير صالح." });
+    if (!body) return res.status(400).json({ error: "التعليق فارغ." });
+    
     await pool.query(
       "INSERT INTO comments(post_id, author_id, body) VALUES($1, $2, $3)",
       [Number(req.params.id), req.user.id, body]
