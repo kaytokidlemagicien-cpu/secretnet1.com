@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SocialNet</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background-color: #f4f6f9; color: #333; }
 
     header { background: #fff; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eef0f4; }
@@ -21,8 +21,7 @@
 
     .card { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
     textarea { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; font-size: 14px; outline: none; resize: none; min-height: 90px; margin-bottom: 12px; }
-    
-    .file-input-box { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #6b7280; margin-bottom: 12px; background: #fafafa; display: flex; align-items: center; justify-content: space-between; }
+    input[type="text"] { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 14px; outline: none; margin-bottom: 12px; }
 
     .btn-primary { width: 100%; background: #4f46e5; color: white; border: none; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: bold; cursor: pointer; }
     .btn-primary:hover { background: #4338ca; }
@@ -34,12 +33,15 @@
     .post-img { max-width: 100%; border-radius: 10px; margin-bottom: 12px; }
     .post-divider { border-top: 1px solid #f3f4f6; margin: 12px 0; }
 
+    .like-box { display: flex; justify-content: flex-end; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 12px; }
+    .btn-like { background: none; border: none; cursor: pointer; font-size: 16px; }
+
     .comment-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
     .comment-item { background: #f9fafb; border-radius: 8px; padding: 8px 12px; font-size: 13px; }
     .comment-user { font-weight: bold; color: #374151; margin-bottom: 2px; }
     
     .comment-form { display: flex; gap: 8px; }
-    .comment-input { flex: 1; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; }
+    .comment-input { flex: 1; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; margin-bottom: 0 !important; }
     .btn-comment { background: #4f46e5; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: bold; cursor: pointer; }
   </style>
 </head>
@@ -63,10 +65,7 @@
 
     <div class="card">
       <textarea id="postBody" placeholder="بماذا تفكر؟"></textarea>
-      <div class="file-input-box">
-        <span>إرفاق ملف / صورة (اختياري):</span>
-        <input type="file" id="postFile" accept="image/*,.pdf,.doc,.docx">
-      </div>
+      <input type="text" id="postImage" placeholder="رابط صورة (اختياري)">
       <button onclick="createPost()" class="btn-primary" id="btnSubmit">نشر</button>
     </div>
 
@@ -95,13 +94,9 @@
       feed.innerHTML = '';
 
       data.posts.forEach(post => {
-        let fileContent = '';
+        let imgHtml = '';
         if (post.file_url) {
-          if (post.file_url.startsWith('data:image/')) {
-            fileContent = `<img src="${post.file_url}" class="post-img" />`;
-          } else {
-            fileContent = `<div style="margin-bottom:12px;"><a href="${post.file_url}" download="attachment" style="color:#4f46e5; font-size:14px; text-decoration:underline;">📎 تحميل / فتح المرفق</a></div>`;
-          }
+          imgHtml = `<img src="${escape(post.file_url)}" class="post-img" />`;
         }
 
         let commentsHtml = (post.comments || []).map(c => `
@@ -122,8 +117,13 @@
             </div>
           </div>
           <div class="post-content">${escape(post.body)}</div>
-          ${fileContent}
+          ${imgHtml}
           <div class="post-divider"></div>
+
+          <div class="like-box">
+            <span>${post.likes_count || 0}</span>
+            <button onclick="likePost(${post.id})" class="btn-like">❤️</button>
+          </div>
           
           <div class="comment-list">${commentsHtml}</div>
           
@@ -136,51 +136,28 @@
       });
     }
 
-    function readFileAsDataURL(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
-
     async function createPost() {
       const body = document.getElementById('postBody').value;
-      const fileInput = document.getElementById('postFile');
-      const btn = document.getElementById('btnSubmit');
+      const imageUrl = document.getElementById('postImage').value;
 
-      if (!body.trim() && !fileInput.files[0]) return;
+      if (!body.trim() && !imageUrl.trim()) return;
 
-      btn.disabled = true;
-      btn.innerText = 'جاري النشر...';
+      const res = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body, imageUrl })
+      });
 
-      try {
-        let fileData = null;
-        if (fileInput.files[0]) {
-          fileData = await readFileAsDataURL(fileInput.files[0]);
-        }
-
-        const res = await fetch('/api/posts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ body, fileData })
-        });
-
-        if (res.ok) {
-          document.getElementById('postBody').value = '';
-          fileInput.value = '';
-          loadPosts();
-        } else {
-          const err = await res.json();
-          alert(err.error || 'حدث خطأ');
-        }
-      } catch (e) {
-        alert('حدث خطأ أثناء النشر.');
-      } finally {
-        btn.disabled = false;
-        btn.innerText = 'نشر';
+      if (res.ok) {
+        document.getElementById('postBody').value = '';
+        document.getElementById('postImage').value = '';
+        loadPosts();
       }
+    }
+
+    async function likePost(postId) {
+      const res = await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+      if (res.ok) loadPosts();
     }
 
     async function sendComment(postId) {
@@ -197,9 +174,6 @@
       if (res.ok) {
         input.value = '';
         loadPosts();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'فشل إرسال التعليق');
       }
     }
 
