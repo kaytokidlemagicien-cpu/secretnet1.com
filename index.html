@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SocialNet</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="gate" class="gate">
+  <div class="card">
+    <div class="logo">SN</div>
+    <h1>SocialNet</h1>
+    <p>موقع تواصل خاص بالأصدقاء</p>
+    <form id="passForm">
+      <input id="sitePassword" type="password" placeholder="كلمة المرور" required>
+      <input id="userName" maxlength="30" placeholder="اسمك" required>
+      <button>دخول</button>
+      <div id="passError" class="error"></div>
+    </form>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+<header>
+  <div class="brand">SocialNet</div>
+  <div class="welcome">مرحبًا، <b id="currentName"></b> 👋 <button id="logout" class="small">خروج</button></div>
+</header>
+<nav>
+  <button data-view="home" class="active">🏠 الرئيسية</button>
+  <button data-view="friends">👥 الأصدقاء</button>
+  <button data-view="messages">💬 الرسائل</button>
+  <button data-view="profile">👤 ملفي</button>
+</nav>
+<main>
+<section id="home" class="view">
+  <div class="composer">
+    <textarea id="postText" maxlength="500" placeholder="بماذا تفكر؟"></textarea>
+    <input id="postImage" type="url" placeholder="رابط صورة (اختياري)">
+    <button id="publish">نشر</button>
+  </div>
+  <div id="feed"></div>
+</section>
+<section id="friends" class="view hidden">
+  <div class="panel"><h2>👥 الأصدقاء الموجودون</h2><div id="friendsList"></div></div>
+</section>
+<section id="messages" class="view hidden">
+  <div class="panel"><h2>💬 الرسائل</h2><div id="messageUsers"></div><div id="chat" class="chat hidden"></div></div>
+</section>
+<section id="profile" class="view hidden">
+  <div class="panel profile"><div class="avatar">👤</div><h2 id="profileName"></h2><p>ملفك الشخصي داخل SocialNet.</p><button id="clearMine">حذف منشوراتي</button></div>
+</section>
+</main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

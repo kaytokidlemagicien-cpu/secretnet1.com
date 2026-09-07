@@ -1,0 +1,20 @@
+{
+  "name": "socialnet-private",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Private friends-only social network",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "pg": "^8.16.3"
+  }
+}
