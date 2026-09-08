@@ -2,8 +2,8 @@
 
 window.SocialMedia = {
   async fileToDataURL(file, maxWidth = 1600, quality = 0.82) {
-    if (!file || !file.type.startsWith("image/")) throw new Error("اختر صورة صحيحة.");
-    if (file.size > 8 * 1024 * 1024) throw new Error("حجم الصورة كبير جدًا. الحد الأقصى 8MB.");
+    if (!file || !file.type.startsWith("image/")) throw new Error("Choisissez une image valide.");
+    if (file.size > 8 * 1024 * 1024) throw new Error("L’image est trop volumineuse. الحد الأقصى 8MB.");
     const img = await new Promise((resolve, reject) => {
       const fr = new FileReader();
       fr.onload = () => { const im = new Image(); im.onload = () => resolve(im); im.onerror = reject; im.src = fr.result; };

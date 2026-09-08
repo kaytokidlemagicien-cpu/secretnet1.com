@@ -1,12 +1,12 @@
 "use strict";
-if(!SocialNet.requireLogin())throw new Error("غير مسجل");
+if(!SocialNet.requireLogin())throw new Error("Non connecté");
 const avatarInput=document.getElementById("avatarInput"),changeAvatar=document.getElementById("changeAvatar"),status=document.getElementById("avatarStatus"),postsBox=document.getElementById("profilePosts");
 function postCard(p){
- const image=p.image_url?`<div class="post-image-container"><img class="post-image" src="${SocialNet.escapeAttr(p.image_url)}" loading="lazy" alt="صورة المنشور"></div>`:"";
- return `<article class="card post"><div class="post-head"><div class="author">${SocialNet.avatarHTML(p.author_avatar,p.author)}<div><strong>${SocialNet.escape(p.author)}</strong><small>${SocialNet.date(p.created_at)}</small></div></div></div>${p.body?`<div class="post-body">${SocialNet.escape(p.body).replace(/\n/g,"<br>")}</div>`:""}${image}<div class="post-tools">❤️ ${p.likes_count||0} إعجاب</div></article>`;
+ const image=p.image_url?`<div class="post-image-container"><img class="post-image" src="${SocialNet.escapeAttr(p.image_url)}" loading="lazy" alt="Image de la publication"></div>`:"";
+ return `<article class="card post"><div class="post-head"><div class="author">${SocialNet.avatarHTML(p.author_avatar,p.author)}<div><strong>${SocialNet.escape(p.author)}</strong><small>${SocialNet.date(p.created_at)}</small></div></div></div>${p.body?`<div class="post-body">${SocialNet.escape(p.body).replace(/\n/g,"<br>")}</div>`:""}${image}<div class="post-tools">❤️ ${p.likes_count||0} J’aime</div></article>`;
 }
 async function load(){
- postsBox.innerHTML='<div class="loading">جاري تحميل المنشورات...</div>';
+ postsBox.innerHTML='<div class="loading">Chargement des publications...</div>';
  try{
   const d=await SocialNet.api("/api/users/"+SocialNet.user().id),u=d.user;
   document.getElementById("profileName").textContent=u.name;document.getElementById("profileId").textContent=u.id;document.getElementById("profileDate").textContent=SocialNet.date(u.created_at);
@@ -18,9 +18,9 @@ async function load(){
 changeAvatar.addEventListener("click",()=>avatarInput.click());
 avatarInput.addEventListener("change",async()=>{
  const file=avatarInput.files?.[0];if(!file)return;
- if(!file.type.startsWith("image/"))return alert("اختر صورة صحيحة.");
- if(file.size>5*1024*1024)return alert("الحد الأقصى 5 ميغابايت.");
- const fd=new FormData();fd.append("image",file);changeAvatar.disabled=true;status.textContent="⏳ جاري رفع الصورة...";
- try{const d=await SocialNet.api("/api/profile/avatar",{method:"POST",body:fd});sessionStorage.setItem("sn_user",JSON.stringify(d.user));status.textContent="✅ تم تغيير صورة الحساب.";await load();location.reload()}catch(e){status.textContent="❌ "+e.message}finally{changeAvatar.disabled=false;avatarInput.value=""}
+ if(!file.type.startsWith("image/"))return alert("Choisissez une image valide.");
+ if(file.size>5*1024*1024)return alert("Taille maximale : 5 Mo.");
+ const fd=new FormData();fd.append("image",file);changeAvatar.disabled=true;status.textContent="⏳ Téléversement de l’image...";
+ try{const d=await SocialNet.api("/api/profile/avatar",{method:"POST",body:fd});sessionStorage.setItem("sn_user",JSON.stringify(d.user));status.textContent="✅ Photo de profil modifiée.";await load();location.reload()}catch(e){status.textContent="❌ "+e.message}finally{changeAvatar.disabled=false;avatarInput.value=""}
 });
 document.getElementById("refreshProfile").addEventListener("click",load);load();

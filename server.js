@@ -82,7 +82,7 @@ try {
 } catch (err) {
 
     console.error(
-        "تعذر تحميل .env:",
+        "Impossible de charger .env :",
         err.message
     );
 
@@ -116,7 +116,7 @@ const DATABASE_URL =
 if (!DATABASE_URL) {
 
     console.error(
-        "❌ DATABASE_URL غير موجودة."
+        "❌ DATABASE_URL est manquante."
     );
 
 }
@@ -185,7 +185,7 @@ if (
 } else {
 
     console.warn(
-        "⚠️ بيانات Cloudinary غير موجودة. رفع الصور لن يعمل حتى تضيف متغيرات Cloudinary."
+        "⚠️ Les variables Cloudinary sont absentes. Le téléversement des images ne fonctionnera pas tant qu’elles ne seront pas ajoutées."
     );
 
 }
@@ -236,7 +236,7 @@ const upload =
 
                     cb(
                         new Error(
-                            "نوع الصورة غير مسموح. استخدم JPG أو PNG أو GIF أو WEBP."
+                            "Type d’image non autorisé. Utilisez JPG, PNG, GIF ou WEBP."
                         )
                     );
 
@@ -259,12 +259,23 @@ app.set(
 
 app.use(
     helmet({
-
+        // السماح بعرض صور Cloudinary والصور المرفوعة من مصادر HTTPS.
+        // بدون هذا الإعداد قد يمنع Helmet المتصفح من تحميل صور publications
+        // وصور الحساب رغم أن رابط Cloudinary صحيح.
+        contentSecurityPolicy: {
+            directives: {
+                "img-src": [
+                    "'self'",
+                    "data:",
+                    "blob:",
+                    "https:"
+                ]
+            }
+        },
         crossOriginResourcePolicy: {
             policy:
                 "cross-origin"
         }
-
     })
 );
 
@@ -659,6 +670,42 @@ async function initDb() {
             );
         `);
 
+        /* =================================================
+           GROUP CHATS
+        ================================================= */
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS group_chats (
+                id BIGSERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                owner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS group_members (
+                group_id BIGINT NOT NULL REFERENCES group_chats(id) ON DELETE CASCADE,
+                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role TEXT NOT NULL DEFAULT 'member',
+                joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (group_id, user_id)
+            );
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS group_messages (
+                id BIGSERIAL PRIMARY KEY,
+                group_id BIGINT NOT NULL REFERENCES group_chats(id) ON DELETE CASCADE,
+                sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                body TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        `);
+
+        await pool.query(`CREATE INDEX IF NOT EXISTS group_members_user_idx ON group_members(user_id, group_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS group_messages_group_idx ON group_messages(group_id, created_at);`);
+
+
 
         await pool.query(`
             CREATE INDEX IF NOT EXISTS
@@ -681,7 +728,7 @@ async function initDb() {
     } catch (err) {
 
         console.error(
-            "❌ خطأ في قاعدة البيانات:",
+            "❌ Erreur de base de données :",
             err
         );
 
@@ -716,7 +763,7 @@ function hashToken(token) {
 
 
 /* =========================================================
-   التحقق من تسجيل الدخول
+   التحقق من تسجيل الConnexion
 ========================================================= */
 
 async function requireAuth(
@@ -743,7 +790,7 @@ async function requireAuth(
                 .json({
 
                     error:
-                        "يجب تسجيل الدخول أولاً."
+                        "Vous devez d’abord vous connecter."
 
                 });
 
@@ -763,7 +810,7 @@ async function requireAuth(
                 .json({
 
                     error:
-                        "جلسة غير صالحة."
+                        "Session invalide."
 
                 });
 
@@ -808,7 +855,7 @@ async function requireAuth(
                 .json({
 
                     error:
-                        "انتهت الجلسة. سجل الدخول من جديد."
+                        "La session a expiré. Reconnectez-vous."
 
                 });
 
@@ -844,7 +891,7 @@ async function requireAuth(
 
 
 /* =========================================================
-   الصفحة الرئيسية
+   الصفحة Accueil
 ========================================================= */
 
 app.get(
@@ -860,7 +907,7 @@ app.get(
 
 
 /* =========================================================
-   تسجيل الدخول
+   تسجيل الConnexion
 ========================================================= */
 
 app.post(
@@ -903,7 +950,7 @@ app.post(
                     .json({
 
                         error:
-                            "كلمة المرور غير صحيحة."
+                            "Mot de passe incorrect."
 
                     });
 
@@ -920,7 +967,7 @@ app.post(
                     .json({
 
                         error:
-                            "الاسم يجب أن يكون بين حرفين و30 حرفًا."
+                            "Le nom doit contenir entre 2 et 30 caractères."
 
                     });
 
@@ -1058,7 +1105,7 @@ app.get(
                     .json({
 
                         error:
-                            "المستخدم غير موجود."
+                            "Utilisateur introuvable."
 
                     });
 
@@ -1083,7 +1130,7 @@ app.get(
 
 
 /* =========================================================
-   تسجيل الخروج
+   تسجيل الDéconnexion
 ========================================================= */
 
 app.post(
@@ -1169,7 +1216,7 @@ app.post(
                     .json({
 
                         error:
-                            "لم يتم اختيار صورة."
+                            "Aucune image sélectionnée."
 
                     });
 
@@ -1187,7 +1234,7 @@ app.post(
                     .json({
 
                         error:
-                            "تخزين الصور غير مُعدّ بعد. أضف بيانات Cloudinary إلى Render."
+                            "Le stockage des images n’est pas configuré. Ajoutez les variables Cloudinary à Render."
 
                     });
 
@@ -1326,7 +1373,7 @@ app.post(
 
             if (req.file) {
                 if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-                    return res.status(500).json({ error: "تخزين الصور غير مُعدّ بعد. أضف بيانات Cloudinary إلى Render." });
+                    return res.status(500).json({ error: "Le stockage des images n’est pas configuré. Ajoutez les variables Cloudinary à Render." });
                 }
                 const publicId = crypto.randomBytes(16).toString("hex");
                 const result = await new Promise((resolve, reject) => {
@@ -1343,7 +1390,7 @@ app.post(
             }
 
             if (!imageUrl || imageUrl.length > 2000) {
-                return res.status(400).json({ error: "اختر صورة صحيحة." });
+                return res.status(400).json({ error: "Choisissez une image valide." });
             }
 
             const result = await pool.query(`
@@ -1441,7 +1488,7 @@ app.get(
                     .json({
 
                         error:
-                            "معرف المستخدم غير صالح."
+                            "ID utilisateur invalide."
 
                     });
 
@@ -1476,7 +1523,7 @@ app.get(
                     .json({
 
                         error:
-                            "المستخدم غير موجود."
+                            "Utilisateur introuvable."
 
                     });
 
@@ -1669,7 +1716,7 @@ app.get(
 
 
 /* =========================================================
-   المنشورات الرئيسية
+   publications Accueil
 ========================================================= */
 
 app.get(
@@ -1857,7 +1904,7 @@ app.get(
 
 
 /* =========================================================
-   إنشاء منشور
+   Créer une publication
 ========================================================= */
 
 app.post(
@@ -1898,7 +1945,7 @@ app.post(
                     .json({
 
                         error:
-                            "يرجى كتابة نص أو اختيار صورة."
+                            "Veuillez écrire un texte ou choisir une image."
 
                     });
 
@@ -1914,7 +1961,7 @@ app.post(
                     .json({
 
                         error:
-                            "المنشور طويل جدًا."
+                            "La publication est trop longue."
 
                     });
 
@@ -1930,7 +1977,7 @@ app.post(
                     .json({
 
                         error:
-                            "رابط الصورة طويل جدًا."
+                            "Le lien de l’image est trop long."
 
                     });
 
@@ -2022,7 +2069,7 @@ app.post(
                     .json({
 
                         error:
-                            "معرف المنشور غير صالح."
+                            "ID de publication invalide."
 
                     });
 
@@ -2051,7 +2098,7 @@ app.post(
                     .json({
 
                         error:
-                            "المنشور غير موجود."
+                            "Publication introuvable."
 
                     });
 
@@ -2194,7 +2241,7 @@ app.post(
                     .json({
 
                         error:
-                            "معرف المنشور غير صالح."
+                            "ID de publication invalide."
 
                     });
 
@@ -2208,7 +2255,7 @@ app.post(
                     .json({
 
                         error:
-                            "التعليق فارغ."
+                            "Le commentaire est vide."
 
                     });
 
@@ -2224,7 +2271,7 @@ app.post(
                     .json({
 
                         error:
-                            "التعليق طويل جدًا."
+                            "Le commentaire est trop long."
 
                     });
 
@@ -2253,7 +2300,7 @@ app.post(
                     .json({
 
                         error:
-                            "المنشور غير موجود."
+                            "Publication introuvable."
 
                     });
 
@@ -2353,8 +2400,19 @@ app.delete(
 );
 
 
+
+async function areFriends(userA, userB) {
+    const r = await pool.query(`
+        SELECT 1 FROM friendships
+        WHERE status='accepted'
+          AND ((requester_id=$1 AND addressee_id=$2) OR (requester_id=$2 AND addressee_id=$1))
+        LIMIT 1
+    `, [userA, userB]);
+    return r.rows.length > 0;
+}
+
 /* =========================================================
-   الرسائل
+   Messages
 ========================================================= */
 
 app.get(
@@ -2386,7 +2444,7 @@ app.get(
                     .json({
 
                         error:
-                            "معرف المستخدم غير صالح."
+                            "ID utilisateur invalide."
 
                     });
 
@@ -2403,10 +2461,14 @@ app.get(
                     .json({
 
                         error:
-                            "لا يمكنك مراسلة نفسك."
+                            "Vous ne pouvez pas vous envoyer de message."
 
                     });
 
+            }
+
+            if (!(await areFriends(req.user.id, otherUserId))) {
+                return res.status(403).json({ error: "Vous pouvez uniquement envoyer des messages à vos amis." });
             }
 
 
@@ -2438,7 +2500,7 @@ app.get(
                     .json({
 
                         error:
-                            "المستخدم غير موجود."
+                            "Utilisateur introuvable."
 
                     });
 
@@ -2517,7 +2579,7 @@ app.get(
 
 
 /* =========================================================
-   إرسال رسالة
+   Envoyer رسالة
 ========================================================= */
 
 app.post(
@@ -2557,7 +2619,7 @@ app.post(
                     .json({
 
                         error:
-                            "معرف المستخدم غير صالح."
+                            "ID utilisateur invalide."
 
                     });
 
@@ -2574,7 +2636,7 @@ app.post(
                     .json({
 
                         error:
-                            "لا يمكنك إرسال رسالة لنفسك."
+                            "Vous ne pouvez pas vous envoyer un message."
 
                     });
 
@@ -2588,7 +2650,7 @@ app.post(
                     .json({
 
                         error:
-                            "الرسالة فارغة."
+                            "Le message est vide."
 
                     });
 
@@ -2604,7 +2666,7 @@ app.post(
                     .json({
 
                         error:
-                            "الرسالة طويلة جدًا."
+                            "Le message est trop long."
 
                     });
 
@@ -2635,7 +2697,7 @@ app.post(
                     .json({
 
                         error:
-                            "المستخدم غير موجود."
+                            "Utilisateur introuvable."
 
                     });
 
@@ -2694,7 +2756,7 @@ app.post(
 
 
 /* =========================================================
-   نظام الأصدقاء
+   نظام Amis
 ========================================================= */
 
 app.get("/api/friends", requireAuth, async (req, res, next) => {
@@ -2735,25 +2797,54 @@ app.get("/api/friends/requests", requireAuth, async (req, res, next) => {
 
 app.post("/api/friends/request/:userId", requireAuth, async (req, res, next) => {
     try {
+        const me = Number(req.user.id);
         const other = Number(req.params.userId);
-        if (!Number.isInteger(other) || other <= 0 || other === Number(req.user.id))
-            return res.status(400).json({ error: "طلب صداقة غير صالح." });
+
+        if (!Number.isInteger(other) || other <= 0 || other === me) {
+            return res.status(400).json({ error: "Demande d’amitié invalide." });
+        }
 
         const user = await pool.query("SELECT id FROM users WHERE id=$1", [other]);
-        if (!user.rows.length) return res.status(404).json({ error: "المستخدم غير موجود." });
+        if (!user.rows.length) {
+            return res.status(404).json({ error: "Utilisateur introuvable." });
+        }
+
+        // إذا كان هناك طلب من الطرف الآخر إلى المستخدم الحالي، يتم Accepter la demande
+        // مباشرة عند الضغط على «Ajouter comme ami». هذا يجعل الإضافة تعمل في الاتجاهين.
+        const reversePending = await pool.query(`
+            SELECT id, requester_id, addressee_id, status
+            FROM friendships
+            WHERE requester_id=$1 AND addressee_id=$2 AND status='pending'
+            LIMIT 1
+        `, [other, me]);
+
+        if (reversePending.rows.length) {
+            const accepted = await pool.query(`
+                UPDATE friendships
+                SET status='accepted', updated_at=NOW()
+                WHERE id=$1
+                RETURNING *
+            `, [reversePending.rows[0].id]);
+            return res.json({ ok: true, accepted: true, friendship: accepted.rows[0] });
+        }
 
         const existing = await pool.query(`
             SELECT id, requester_id, addressee_id, status
             FROM friendships
             WHERE (requester_id=$1 AND addressee_id=$2)
                OR (requester_id=$2 AND addressee_id=$1)
+            ORDER BY id DESC
             LIMIT 1
-        `, [req.user.id, other]);
+        `, [me, other]);
 
         if (existing.rows.length) {
             const f = existing.rows[0];
-            if (f.status === "accepted") return res.status(400).json({ error: "أنتما صديقان بالفعل." });
-            if (f.status === "pending") return res.status(400).json({ error: "يوجد طلب صداقة معلّق بالفعل." });
+            if (f.status === "accepted") {
+                return res.status(400).json({ error: "Vous êtes déjà amis." });
+            }
+            if (f.status === "pending") {
+                return res.status(400).json({ error: "La demande d’amitié a déjà été envoyée." });
+            }
             await pool.query("DELETE FROM friendships WHERE id=$1", [f.id]);
         }
 
@@ -2761,22 +2852,38 @@ app.post("/api/friends/request/:userId", requireAuth, async (req, res, next) => 
             INSERT INTO friendships(requester_id, addressee_id, status)
             VALUES($1,$2,'pending')
             RETURNING *
-        `, [req.user.id, other]);
-        res.json({ ok: true, friendship: r.rows[0] });
-    } catch (err) { next(err); }
+        `, [me, other]);
+
+        res.json({ ok: true, sent: true, friendship: r.rows[0] });
+    } catch (err) {
+        console.error("Friend request error:", err);
+        next(err);
+    }
 });
 
 app.post("/api/friends/accept/:id", requireAuth, async (req, res, next) => {
     try {
         const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ error: "ID de demande d’amitié invalide." });
+        }
+
         const r = await pool.query(`
-            UPDATE friendships SET status='accepted', updated_at=NOW()
+            UPDATE friendships
+            SET status='accepted', updated_at=NOW()
             WHERE id=$1 AND addressee_id=$2 AND status='pending'
-            RETURNING *
-        `, [id, req.user.id]);
-        if (!r.rows.length) return res.status(404).json({ error: "طلب الصداقة غير موجود." });
+            RETURNING id, requester_id, addressee_id, status, created_at, updated_at
+        `, [id, Number(req.user.id)]);
+
+        if (!r.rows.length) {
+            return res.status(404).json({ error: "La demande d’amitié est introuvable ou a déjà été traitée." });
+        }
+
         res.json({ ok: true, friendship: r.rows[0] });
-    } catch (err) { next(err); }
+    } catch (err) {
+        console.error("Friend accept error:", err);
+        next(err);
+    }
 });
 
 app.delete("/api/friends/:userId", requireAuth, async (req, res, next) => {
@@ -2789,6 +2896,159 @@ app.delete("/api/friends/:userId", requireAuth, async (req, res, next) => {
               AND status='accepted'
         `, [req.user.id, other]);
         res.json({ ok: true });
+    } catch (err) { next(err); }
+});
+
+/* =========================================================
+   مجموعات الدردشة
+========================================================= */
+
+app.get("/api/groups", requireAuth, async (req, res, next) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                g.id,
+                g.name,
+                g.owner_id,
+                g.created_at,
+                COUNT(DISTINCT gm2.user_id)::int AS member_count,
+                COALESCE(MAX(gmsg.created_at), g.created_at) AS last_activity
+            FROM group_chats g
+            JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $1
+            LEFT JOIN group_members gm2 ON gm2.group_id = g.id
+            LEFT JOIN group_messages gmsg ON gmsg.group_id = g.id
+            GROUP BY g.id
+            ORDER BY last_activity DESC, g.id DESC
+        `, [Number(req.user.id)]);
+        res.json({ groups: result.rows });
+    } catch (err) { next(err); }
+});
+
+app.post("/api/groups", writeLimiter, requireAuth, async (req, res, next) => {
+    const client = await pool.connect();
+    try {
+        const name = String(req.body?.name || "").trim();
+        let memberIds = Array.isArray(req.body?.member_ids) ? req.body.member_ids : [];
+        memberIds = [...new Set(memberIds.map(Number).filter(Number.isInteger).filter(id => id > 0))];
+        const me = Number(req.user.id);
+
+        if (name.length < 2 || name.length > 80) {
+            return res.status(400).json({ error: "Le nom du groupe doit contenir entre 2 et 80 caractères." });
+        }
+        memberIds = memberIds.filter(id => id !== me);
+        if (memberIds.length < 2) {
+            return res.status(400).json({ error: "Choisissez au moins deux amis pour créer un groupe." });
+        }
+        if (memberIds.length > 49) {
+            return res.status(400).json({ error: "Vous pouvez ajouter au maximum 49 amis en plus du créateur du groupe." });
+        }
+
+        const friends = await pool.query(`
+            SELECT u.id
+            FROM users u
+            JOIN friendships f ON (
+                (f.requester_id=$1 AND f.addressee_id=u.id) OR
+                (f.addressee_id=$1 AND f.requester_id=u.id)
+            )
+            WHERE f.status='accepted' AND u.id = ANY($2::bigint[])
+        `, [me, memberIds]);
+
+        if (friends.rows.length !== memberIds.length) {
+            return res.status(400).json({ error: "Vous pouvez uniquement ajouter vos amis au groupe." });
+        }
+
+        await client.query("BEGIN");
+        const group = await client.query(`
+            INSERT INTO group_chats(name, owner_id)
+            VALUES($1,$2)
+            RETURNING id, name, owner_id, created_at
+        `, [name, me]);
+
+        await client.query(`
+            INSERT INTO group_members(group_id, user_id, role)
+            VALUES($1,$2,'owner')
+        `, [group.rows[0].id, me]);
+
+        for (const id of memberIds) {
+            await client.query(`
+                INSERT INTO group_members(group_id, user_id, role)
+                VALUES($1,$2,'member')
+            `, [group.rows[0].id, id]);
+        }
+
+        await client.query("COMMIT");
+        res.status(201).json({ ok: true, group: { ...group.rows[0], member_count: memberIds.length + 1 } });
+    } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
+        next(err);
+    } finally {
+        client.release();
+    }
+});
+
+app.get("/api/groups/:groupId", requireAuth, async (req, res, next) => {
+    try {
+        const groupId = Number(req.params.groupId);
+        if (!Number.isInteger(groupId) || groupId <= 0) return res.status(400).json({ error: "ID de groupe invalide." });
+
+        const group = await pool.query(`
+            SELECT g.id, g.name, g.owner_id, g.created_at,
+                   COUNT(gm.user_id)::int AS member_count
+            FROM group_chats g
+            JOIN group_members mine ON mine.group_id=g.id AND mine.user_id=$2
+            LEFT JOIN group_members gm ON gm.group_id=g.id
+            WHERE g.id=$1
+            GROUP BY g.id
+        `, [groupId, Number(req.user.id)]);
+        if (!group.rows.length) return res.status(404).json({ error: "Le groupe est introuvable ou vous n’en êtes pas membre." });
+
+        const members = await pool.query(`
+            SELECT u.id, u.name, u.avatar_url, gm.role, gm.joined_at
+            FROM group_members gm JOIN users u ON u.id=gm.user_id
+            WHERE gm.group_id=$1
+            ORDER BY CASE WHEN gm.role='owner' THEN 0 ELSE 1 END, u.name ASC
+        `, [groupId]);
+
+        res.json({ group: group.rows[0], members: members.rows });
+    } catch (err) { next(err); }
+});
+
+app.get("/api/groups/:groupId/messages", requireAuth, async (req, res, next) => {
+    try {
+        const groupId = Number(req.params.groupId);
+        if (!Number.isInteger(groupId) || groupId <= 0) return res.status(400).json({ error: "ID de groupe invalide." });
+        const member = await pool.query(`SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2`, [groupId, Number(req.user.id)]);
+        if (!member.rows.length) return res.status(403).json({ error: "Seuls les membres du groupe peuvent voir les messages." });
+
+        const result = await pool.query(`
+            SELECT gm.id, gm.group_id, gm.sender_id, gm.body, gm.created_at,
+                   u.name AS sender, u.avatar_url AS sender_avatar
+            FROM group_messages gm
+            JOIN users u ON u.id=gm.sender_id
+            WHERE gm.group_id=$1
+            ORDER BY gm.created_at ASC
+            LIMIT 1000
+        `, [groupId]);
+        res.json({ messages: result.rows });
+    } catch (err) { next(err); }
+});
+
+app.post("/api/groups/:groupId/messages", writeLimiter, requireAuth, async (req, res, next) => {
+    try {
+        const groupId = Number(req.params.groupId);
+        const body = String(req.body?.body || "").trim();
+        if (!Number.isInteger(groupId) || groupId <= 0) return res.status(400).json({ error: "ID de groupe invalide." });
+        if (!body) return res.status(400).json({ error: "Le message est vide." });
+        if (body.length > 2000) return res.status(400).json({ error: "Le message est trop long." });
+        const member = await pool.query(`SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2`, [groupId, Number(req.user.id)]);
+        if (!member.rows.length) return res.status(403).json({ error: "Seuls les membres du groupe peuvent envoyer des messages." });
+
+        const result = await pool.query(`
+            INSERT INTO group_messages(group_id, sender_id, body)
+            VALUES($1,$2,$3)
+            RETURNING id, group_id, sender_id, body, created_at
+        `, [groupId, Number(req.user.id), body]);
+        res.json({ ok: true, message: result.rows[0] });
     } catch (err) { next(err); }
 });
 
@@ -2830,7 +3090,7 @@ app.use(
                     .json({
 
                         error:
-                            "حجم الصورة يجب ألا يتجاوز 5 ميغابايت."
+                            "La taille de l’image ne doit pas dépasser 5 Mo."
 
                     });
 
@@ -2842,7 +3102,7 @@ app.use(
                 .json({
 
                     error:
-                        "حدث خطأ أثناء رفع الصورة."
+                        "Une erreur est survenue lors du téléversement de l’image."
 
                 });
 
@@ -2907,7 +3167,7 @@ app.use(
             .json({
 
                 error:
-                    "حدث خطأ في الخادم."
+                    "Une erreur est survenue sur le serveur."
 
             });
 
@@ -2931,7 +3191,7 @@ async function startServer() {
             () => {
 
                 console.log(
-                    `🚀 SocialNet يعمل على المنفذ ${PORT}`
+                    `🚀 SocialNet fonctionne sur le port ${PORT}`
                 );
 
             }
@@ -2940,7 +3200,7 @@ async function startServer() {
     } catch (err) {
 
         console.error(
-            "❌ تعذر تشغيل الخادم:",
+            "❌ Impossible de démarrer le serveur :",
             err
         );
 

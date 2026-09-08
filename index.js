@@ -1,11 +1,11 @@
 "use strict";
 
 /* =========================================================
-   التحقق من تسجيل الدخول
+   التحقق من تسجيل الConnexion
 ========================================================= */
 
 if (!SocialNet.requireLogin()) {
-    throw new Error("غير مسجل");
+    throw new Error("Non connecté");
 }
 
 
@@ -74,7 +74,7 @@ async function loadCurrentUser() {
     } catch (error) {
 
         console.error(
-            "خطأ في تحميل المستخدم:",
+            "Erreur lors du chargement de l’utilisateur :",
             error
         );
 
@@ -150,7 +150,7 @@ function updateUserInterface(user) {
 
 
     /* =====================================================
-       صورة القائمة الجانبية
+       صورة barre latérale
     ===================================================== */
 
     const sideAvatar =
@@ -219,13 +219,13 @@ function updateUserInterface(user) {
 
 
 /* =========================================================
-   تحميل المنشورات
+   تحميل publications
 ========================================================= */
 
 async function load() {
 
     feed.innerHTML =
-        '<div class="card loading">جاري تحميل المنشورات...</div>';
+        '<div class="card loading">Chargement des publications...</div>';
 
     try {
 
@@ -240,7 +240,7 @@ async function load() {
         if (!posts.length) {
 
             feed.innerHTML =
-                '<div class="card empty">لا توجد منشورات بعد. كن أول من ينشر! ✨</div>';
+                '<div class="card empty">Aucune publication pour le moment. Soyez le premier à publier ! ✨</div>';
 
             return;
         }
@@ -251,7 +251,7 @@ async function load() {
     } catch (error) {
 
         console.error(
-            "خطأ في تحميل المنشورات:",
+            "Erreur lors du chargement des publications :",
             error
         );
 
@@ -371,7 +371,7 @@ function render(p) {
                             p.image_url
                         )}"
                         loading="lazy"
-                        alt="صورة المنشور"
+                        alt="Image de la publication"
                         onerror="this.style.display='none'"
                     >
 
@@ -455,7 +455,7 @@ function render(p) {
 
                 ${
                     comments ||
-                    '<span class="muted">لا توجد تعليقات بعد.</span>'
+                    '<span class="muted">Aucun commentaire pour le moment.</span>'
                 }
 
             </div>
@@ -468,7 +468,7 @@ function render(p) {
 
                 <input
                     maxlength="500"
-                    placeholder="اكتب تعليقًا..."
+                    placeholder="Écrire un commentaire..."
                     required
                 >
 
@@ -476,7 +476,7 @@ function render(p) {
                     type="submit"
                     class="btn btn-soft"
                 >
-                    إرسال
+                    Envoyer
                 </button>
 
             </form>
@@ -487,7 +487,7 @@ function render(p) {
 
 
 /* =========================================================
-   اختيار صورة من الجهاز
+   Choisir une image depuis l’appareil
 ========================================================= */
 
 chooseImage.addEventListener(
@@ -529,7 +529,7 @@ imageInput.addEventListener(
         ) {
 
             alert(
-                "الملف المختار ليس صورة."
+                "Le fichier sélectionné n’est pas une image."
             );
 
             resetImageSelection();
@@ -548,8 +548,8 @@ imageInput.addEventListener(
         if (file.size > maxSize) {
 
             alert(
-                "حجم الصورة كبير جدًا.\n\n" +
-                "الحد الأقصى هو 5 ميغابايت."
+                "L’image est trop volumineuse.\n\n" +
+                "La taille maximale est de 5 Mo."
             );
 
             resetImageSelection();
@@ -645,7 +645,7 @@ function resetImageSelection() {
 
 
     selectedImageName.textContent =
-        "لم يتم اختيار صورة";
+        "Aucune image sélectionnée";
 
 
     imagePreviewBox.hidden =
@@ -678,7 +678,7 @@ async function uploadSelectedImage() {
 
 
     uploadStatus.textContent =
-        "⏳ جاري رفع الصورة...";
+        "⏳ Téléversement de l’image...";
 
 
     uploadStatus.className =
@@ -719,14 +719,14 @@ async function uploadSelectedImage() {
         ) {
 
             throw new Error(
-                "الخادم لم يُرجع رابط الصورة."
+                "Le serveur n’a pas renvoyé le lien de l’image."
             );
 
         }
 
 
         uploadStatus.textContent =
-            "✅ تم رفع الصورة بنجاح.";
+            "✅ Image téléversée avec succès.";
 
         uploadStatus.className =
             "upload-status success";
@@ -751,7 +751,7 @@ async function uploadSelectedImage() {
 
 
 /* =========================================================
-   نشر المنشور
+   Publier
 ========================================================= */
 
 pub.addEventListener(
@@ -769,7 +769,7 @@ pub.addEventListener(
         if (!text && !hasImage) {
 
             alert(
-                "اكتب شيئًا أو اختر صورة."
+                "Écrivez quelque chose ou choisissez une image."
             );
 
             return;
@@ -783,7 +783,7 @@ pub.addEventListener(
             true;
 
         pub.textContent =
-            "جاري النشر...";
+            "Publication en cours...";
 
 
         try {
@@ -842,7 +842,7 @@ pub.addEventListener(
 
 
             /* ===============================================
-               تحديث المنشورات
+               تحديث publications
             =============================================== */
 
             await load();
@@ -857,13 +857,13 @@ pub.addEventListener(
         } catch (error) {
 
             console.error(
-                "خطأ أثناء نشر المنشور:",
+                "Erreur lors de la publication :",
                 error
             );
 
             alert(
                 error.message ||
-                "تعذر نشر المنشور."
+                "Impossible de publier la publication."
             );
 
         } finally {
@@ -875,7 +875,7 @@ pub.addEventListener(
                 false;
 
             pub.textContent =
-                "نشر المنشور";
+                "Publier";
 
         }
 
@@ -884,7 +884,7 @@ pub.addEventListener(
 
 
 /* =========================================================
-   الإعجاب
+   الJ’aime
 ========================================================= */
 
 feed.addEventListener(
@@ -1026,7 +1026,7 @@ feed.addEventListener(
 
 
 /* =========================================================
-   تحديث المنشورات
+   تحديث publications
 ========================================================= */
 
 refresh.addEventListener(
@@ -1037,7 +1037,7 @@ refresh.addEventListener(
             true;
 
         refresh.textContent =
-            "⏳ تحديث...";
+            "⏳ Actualisation...";
 
         try {
 
@@ -1049,7 +1049,7 @@ refresh.addEventListener(
                 false;
 
             refresh.textContent =
-                "↻ تحديث";
+                "↻ Actualiser";
 
         }
 
@@ -1067,8 +1067,8 @@ clearMine.addEventListener(
 
         const confirmed =
             confirm(
-                "هل تريد حذف جميع منشوراتك؟\n\n" +
-                "هذا الإجراء نهائي."
+                "Voulez-vous supprimer toutes vos publications ?\n\n" +
+                "Cette action est définitive."
             );
 
 

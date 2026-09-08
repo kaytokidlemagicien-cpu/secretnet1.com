@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="fr" dir="ltr">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
 
-    <title>الرئيسية - SocialNet</title>
+    <title>Accueil - SocialNet</title>
 
     <link rel="stylesheet" href="/style.css">
 </head>
@@ -26,7 +26,7 @@
                 id="topAvatar"
                 class="mini-avatar"
                 src=""
-                alt="الصورة الشخصية"
+                alt="Photo de profil"
                 hidden
             >
 
@@ -43,7 +43,7 @@
             class="logout-button"
             type="button"
         >
-            خروج
+            Déconnexion
         </button>
 
     </div>
@@ -55,7 +55,7 @@
 
     <div class="grid">
 
-        <!-- القائمة الجانبية -->
+        <!-- barre latérale -->
 
         <aside class="side">
 
@@ -72,7 +72,7 @@
                             id="sideAvatar"
                             class="avatar"
                             src=""
-                            alt="الصورة الشخصية"
+                            alt="Photo de profil"
                             hidden
                         >
 
@@ -88,7 +88,7 @@
                             </strong>
 
                             <small>
-                                حسابك على SocialNet
+                                Votre compte SocialNet
                             </small>
 
                         </div>
@@ -104,25 +104,25 @@
                         class="active"
                         href="/index.html"
                     >
-                        🏠 الرئيسية
+                        🏠 Accueil
                     </a>
 
                     <a
                         href="/profile.html"
                     >
-                        👤 ملفي
+                        👤 Mon profil
                     </a>
 
                     <a
                         href="/friends.html"
                     >
-                        🤝 الأصدقاء
+                        🤝 Amis
                     </a>
 
                     <a
                         href="/messages.html"
                     >
-                        💬 الرسائل
+                        💬 Messages
                     </a>
 
                 </nav>
@@ -132,14 +132,14 @@
         </aside>
 
 
-        <!-- المحتوى الرئيسي -->
+        <!-- contenu principal -->
 
         <section>
 
             <div class="feed-title">
 
                 <h1>
-                    الرئيسية
+                    Accueil
                 </h1>
 
                 <button
@@ -147,13 +147,13 @@
                     class="btn btn-soft btn-small"
                     type="button"
                 >
-                    ↻ تحديث
+                    ↻ Actualiser
                 </button>
 
             </div>
 
 
-            <!-- إنشاء منشور -->
+            <!-- Créer une publication -->
 
             <div class="card composer">
 
@@ -163,7 +163,7 @@
                         id="composerAvatar"
                         class="avatar"
                         src=""
-                        alt="الصورة الشخصية"
+                        alt="Photo de profil"
                         hidden
                     >
 
@@ -179,7 +179,7 @@
                         </strong>
 
                         <small>
-                            شارك شيئًا مع مجتمعك
+                            Partagez quelque chose avec votre communauté
                         </small>
 
                     </div>
@@ -190,11 +190,11 @@
                 <textarea
                     id="postBody"
                     maxlength="5000"
-                    placeholder="بماذا تفكر؟"
+                    placeholder="À quoi pensez-vous ?"
                 ></textarea>
 
 
-                <!-- اختيار صورة من الجهاز -->
+                <!-- Choisir une image depuis l’appareil -->
 
                 <input
                     id="postImageFile"
@@ -213,14 +213,14 @@
                             class="btn btn-soft"
                             type="button"
                         >
-                            📷 إضافة صورة
+                            📷 Ajouter une image
                         </button>
 
                         <span
                             id="selectedImageName"
                             class="attach-hint"
                         >
-                            لم يتم اختيار صورة
+                            Aucune image sélectionnée
                         </span>
 
                     </div>
@@ -230,13 +230,13 @@
                         class="btn btn-primary"
                         type="button"
                     >
-                        نشر المنشور
+                        Publier
                     </button>
 
                 </div>
 
 
-                <!-- معاينة الصورة -->
+                <!-- Aperçu de l’image -->
 
                 <div
                     id="postImagePreviewBox"
@@ -247,7 +247,7 @@
                     <div class="image-preview-header">
 
                         <strong>
-                            معاينة الصورة
+                            Aperçu de l’image
                         </strong>
 
                         <button
@@ -264,7 +264,7 @@
                         id="postImagePreview"
                         class="post-image-preview"
                         src=""
-                        alt="معاينة الصورة"
+                        alt="Aperçu de l’image"
                     >
 
                 </div>
@@ -278,12 +278,12 @@
             </div>
 
 
-            <!-- المنشورات -->
+            <!-- publications -->
 
             <div class="feed-title">
 
                 <h1>
-                    آخر المنشورات
+                    Dernières publications
                 </h1>
 
             </div>
@@ -292,22 +292,22 @@
             <div id="feed">
 
                 <div class="card loading">
-                    جاري تحميل المنشورات...
+                    Chargement des publications...
                 </div>
 
             </div>
 
 
-            <!-- إدارة المنشورات -->
+            <!-- إدارة publications -->
 
             <div class="card danger-zone">
 
                 <h3>
-                    إدارة منشوراتي
+                    Gérer mes publications
                 </h3>
 
                 <p>
-                    حذف جميع منشوراتك نهائيًا من قاعدة البيانات.
+                    Supprimer définitivement toutes vos publications de la base de données.
                 </p>
 
                 <button
@@ -315,7 +315,7 @@
                     class="btn btn-danger"
                     type="button"
                 >
-                    حذف جميع منشوراتي
+                    Supprimer toutes mes publications
                 </button>
 
             </div>
@@ -323,7 +323,7 @@
         </section>
 
 
-        <!-- الجانب الأيمن -->
+        <!-- colonne droite -->
 
         <aside class="side right-side">
 
@@ -334,7 +334,7 @@
                 </h3>
 
                 <p class="muted">
-                    مكان بسيط لمشاركة أفكارك والتواصل مع الآخرين.
+                    Un espace simple pour partager vos idées et communiquer avec les autres.
                 </p>
 
             </div>
@@ -343,11 +343,11 @@
             <div class="card right-widget">
 
                 <h3 class="widget-title">
-                    📷 الصور
+                    📷 Photos
                 </h3>
 
                 <p class="muted">
-                    يمكنك الآن اختيار الصور مباشرة من هاتفك أو جهاز الكمبيوتر ونشرها على حسابك.
+                    Vous pouvez maintenant choisir des images directement depuis votre téléphone ou votre ordinateur et les publier sur votre compte.
                 </p>
 
             </div>
@@ -356,11 +356,11 @@
             <div class="card right-widget">
 
                 <h3 class="widget-title">
-                    🔒 الخصوصية
+                    🔒 Confidentialité
                 </h3>
 
                 <p class="muted">
-                    جلسة تسجيل الدخول محفوظة لهذا التبويب فقط.
+                    La session de connexion est conservée uniquement pour cet onglet.
                 </p>
 
             </div>
