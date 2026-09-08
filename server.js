@@ -66,14 +66,15 @@ function sign(value) {
   return crypto.createHmac("sha256", COOKIE_SECRET).update(value).digest("base64url");
 }
 
+// إنشاء جلسة مؤقتة (Session Cookie) تنتهي بمجرد إغلاق المتصفح
 function setAuthCookie(res, userId) {
   const value = String(userId);
   res.cookie("sn_auth", `${value}.${sign(value)}`, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 1000 * 60 * 60 * 24 * 30,
+    sameSite: "lax",
     path: "/"
+    // بدون maxAge لتنتهي الجلسة تلقائياً عند إغلاق المتصفح
   });
 }
 
@@ -93,7 +94,7 @@ function getUserId(req) {
 
 async function requireAuth(req, res, next) {
   const userId = getUserId(req);
-  if (!userId) return res.status(401).json({ error: "يجب تسجيل الدخول." });
+  if (!userId) return res.status(401).json({ error: "يجب تسجيل الدخول أولاً." });
   try {
     const { rows } = await pool.query("SELECT id, name FROM users WHERE id=$1", [userId]);
     if (!rows[0]) return res.status(401).json({ error: "انتهت الجلسة." });
@@ -102,7 +103,10 @@ async function requireAuth(req, res, next) {
   } catch (e) { next(e); }
 }
 
-app.get("/", (req, res) => res.redirect("/login.html"));
+// عند دخول الموقع الرئيسي، التوجيه دائماً لصفحة الدخول
+app.get("/", (req, res) => {
+  res.redirect("/login.html");
+});
 
 app.post("/api/enter", authLimiter, async (req, res, next) => {
   try {
@@ -110,6 +114,8 @@ app.post("/api/enter", authLimiter, async (req, res, next) => {
     if (password !== SITE_PASSWORD) return res.status(401).json({ error: "كلمة المرور غير صحيحة." });
     const clean = String(name || "").trim().replace(/\s+/g, " ");
     if (clean.length < 2 || clean.length > 30) return res.status(400).json({ error: "الاسم يجب أن يكون بين حرفين و30 حرفًا." });
+    
+    // البحث عن الاسم أو إنشاؤه إذا كان جديداً (مع الحفاظ على البيانات القديمة بنفس الاسم)
     const { rows } = await pool.query(
       `INSERT INTO users(name) VALUES($1) ON CONFLICT(name) DO UPDATE SET name=EXCLUDED.name RETURNING id,name`,
       [clean]
