@@ -57,9 +57,9 @@
 
   <div class="main-container">
     <div class="nav-bar">
-      <a href="#" class="nav-item">👤 ملفي</a>
-      <a href="#" class="nav-item">💬 الرسائل</a>
-      <a href="#" class="nav-item">👥 الأصدقاء</a>
+      <a href="profile.html" class="nav-item">👤 ملفي</a>
+      <a href="messages.html" class="nav-item">💬 الرسائل</a>
+      <a href="friends.html" class="nav-item">👥 الأصدقاء</a>
       <a href="index.html" class="nav-item active">🏠 الرئيسية</a>
     </div>
 
@@ -151,13 +151,13 @@
       if (res.ok) {
         document.getElementById('postBody').value = '';
         document.getElementById('postImage').value = '';
-        loadPosts();
+        await loadPosts();
       }
     }
 
     async function likePost(postId) {
       const res = await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
-      if (res.ok) loadPosts();
+      if (res.ok) await loadPosts();
     }
 
     async function sendComment(postId) {
@@ -173,7 +173,7 @@
 
       if (res.ok) {
         input.value = '';
-        loadPosts();
+        await loadPosts();
       }
     }
 
