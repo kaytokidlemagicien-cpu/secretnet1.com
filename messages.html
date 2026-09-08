@@ -19,524 +19,147 @@
 
 </head>
 
-<body>
 
-<header>
+<body data-page="messages">
 
-  <div class="welcome">
+
+<header class="top-header">
+
+  <div class="header-user">
+
+    <span>
+      👋 مرحبًا،
+    </span>
+
+    <strong data-user-name>
+      ...
+    </strong>
 
     <button
-      id="logout"
-      class="small"
+      id="logoutButton"
+      class="logout-button"
     >
       خروج
     </button>
 
-    <span>
-      👋
-      <strong id="username">...</strong>
-    </span>
-
   </div>
 
-  <div class="brand">
+  <div class="logo">
     SocialNet
   </div>
 
 </header>
 
 
-<nav>
-
-  <button
-    onclick="location.href='/index.html'"
-  >
-    🏠 الرئيسية
-  </button>
-
-  <button
-    onclick="location.href='/profile.html'"
-  >
-    👤 ملفي
-  </button>
-
-  <button
-    onclick="location.href='/friends.html'"
-  >
-    👥 المستخدمون
-  </button>
-
-  <button class="active">
-    💬 الرسائل
-  </button>
-
-</nav>
+<main class="main-container">
 
 
-<main>
+  <nav class="nav-bar">
 
-  <div class="panel">
-
-    <h2>
-      💬 الرسائل
-    </h2>
-
-    <div
-      id="usersList"
-      style="margin-top:15px"
+    <a
+      href="index.html"
+      class="nav-item"
     >
-      جاري التحميل...
+      🏠 الرئيسية
+    </a>
+
+    <a
+      href="profile.html"
+      class="nav-item"
+    >
+      👤 ملفي
+    </a>
+
+    <a
+      href="friends.html"
+      class="nav-item"
+    >
+      👥 الأصدقاء
+    </a>
+
+    <a
+      href="messages.html"
+      class="nav-item"
+    >
+      💬 الرسائل
+    </a>
+
+  </nav>
+
+
+  <section class="messages-layout">
+
+
+    <div class="card users-panel">
+
+      <h2>
+        👥 المستخدمون
+      </h2>
+
+      <div id="messageUsers">
+
+        <div class="empty">
+          جاري التحميل...
+        </div>
+
+      </div>
+
     </div>
 
-    <div
-      id="chat"
-      class="chat hidden"
-    ></div>
 
-  </div>
+    <div class="card conversation-panel">
 
-</main>
 
+      <div
+        id="conversationTitle"
+        class="conversation-title"
+      >
+        💬 اختر شخصًا للمراسلة
+      </div>
 
-<script>
 
-let selectedUser = null;
+      <div
+        id="messagesContainer"
+        class="messages-container"
+      >
 
+        <div class="empty">
+          اختر مستخدمًا من القائمة لبدء المحادثة.
+        </div>
 
-function getToken() {
+      </div>
 
-  return sessionStorage.getItem(
-    "sn_token"
-  );
 
-}
+      <div class="message-input-area">
 
-
-async function api(url, options = {}) {
-
-  const t = getToken();
-
-
-  if (!t) {
-
-    location.replace(
-      "/login.html"
-    );
-
-    throw new Error(
-      "لا توجد جلسة."
-    );
-
-  }
-
-
-  const response =
-    await fetch(
-      url,
-      {
-        ...options,
-
-        headers: {
-          ...(options.headers || {}),
-
-          "Authorization":
-            "Bearer " + t,
-
-          ...(options.body
-            ? {
-                "Content-Type":
-                  "application/json"
-              }
-            : {})
-        }
-      }
-    );
-
-
-  if (response.status === 401) {
-
-    sessionStorage.clear();
-
-    location.replace(
-      "/login.html"
-    );
-
-    throw new Error(
-      "انتهت الجلسة."
-    );
-
-  }
-
-
-  const data =
-    await response.json()
-      .catch(() => ({}));
-
-
-  if (!response.ok) {
-
-    throw new Error(
-      data.error ||
-      "حدث خطأ."
-    );
-
-  }
-
-
-  return data;
-
-}
-
-
-async function init() {
-
-  try {
-
-    const me =
-      await api("/api/me");
-
-
-    document.getElementById(
-      "username"
-    ).textContent =
-      me.user.name;
-
-
-    await loadUsers();
-
-
-    const params =
-      new URLSearchParams(
-        location.search
-      );
-
-
-    const userId =
-      Number(
-        params.get("user")
-      );
-
-
-    if (userId) {
-
-      const users =
-        await api("/api/users");
-
-
-      const user =
-        users.users.find(
-          item =>
-            Number(item.id) === userId
-        );
-
-
-      if (user) {
-
-        openChat(
-          user.id,
-          user.name
-        );
-
-      }
-
-    }
-
-  } catch (error) {
-
-    console.error(error);
-
-  }
-
-}
-
-
-async function loadUsers() {
-
-  const data =
-    await api(
-      "/api/users"
-    );
-
-
-  const list =
-    document.getElementById(
-      "usersList"
-    );
-
-
-  if (!data.users.length) {
-
-    list.innerHTML =
-      "<p>لا يوجد مستخدمون آخرون.</p>";
-
-    return;
-
-  }
-
-
-  list.innerHTML =
-    data.users.map(user => `
-
-      <div class="userRow">
-
-        <span>
-          👤 ${escapeHtml(user.name)}
-        </span>
+        <input
+          id="messageInput"
+          type="text"
+          maxlength="1000"
+          placeholder="اكتب رسالة..."
+        >
 
         <button
-          onclick="
-            openChat(
-              ${user.id},
-              ${JSON.stringify(user.name)}
-            )
-          "
+          id="sendMessageButton"
+          onclick="sendMessage()"
+          class="btn-primary"
         >
-          فتح المحادثة
+          إرسال
         </button>
 
       </div>
 
-    `).join("");
-
-}
-
-
-async function openChat(
-  userId,
-  userName
-) {
-
-  selectedUser = {
-    id: userId,
-    name: userName
-  };
-
-
-  const data =
-    await api(
-      `/api/messages/${userId}`
-    );
-
-
-  const chat =
-    document.getElementById(
-      "chat"
-    );
-
-
-  chat.classList.remove(
-    "hidden"
-  );
-
-
-  const messages =
-    data.messages || [];
-
-
-  chat.innerHTML = `
-
-    <h3>
-      💬 محادثة مع
-      ${escapeHtml(userName)}
-    </h3>
-
-    <div id="messagesList">
-
-      ${
-        messages.length
-          ? messages.map(message => `
-
-            <div
-              class="
-                msg
-                ${
-                  Number(message.sender_id) ===
-                  Number(
-                    JSON.parse(
-                      sessionStorage.getItem(
-                        "sn_user"
-                      )
-                    ).id
-                  )
-                    ? "me"
-                    : ""
-                }
-              "
-            >
-
-              <strong>
-                ${escapeHtml(message.sender)}
-              </strong>
-
-              <br>
-
-              ${escapeHtml(message.body)}
-
-              <span class="msg-time">
-                ${formatDate(message.created_at)}
-              </span>
-
-            </div>
-
-          `).join("")
-          : "<p>لا توجد رسائل بعد.</p>"
-      }
 
     </div>
 
-    <form
-      id="sendForm"
-      class="chatForm"
-    >
 
-      <input
-        id="messageInput"
-        maxlength="2000"
-        placeholder="اكتب رسالة..."
-        required
-      >
-
-      <button>
-        إرسال
-      </button>
-
-    </form>
-
-  `;
+  </section>
 
 
-  document.getElementById(
-    "sendForm"
-  ).onsubmit =
-    async function(event) {
-
-      event.preventDefault();
-
-      await sendMessage();
-
-    };
-
-}
+</main>
 
 
-async function sendMessage() {
-
-  if (!selectedUser) {
-    return;
-  }
-
-
-  const input =
-    document.getElementById(
-      "messageInput"
-    );
-
-
-  const body =
-    input.value.trim();
-
-
-  if (!body) {
-    return;
-  }
-
-
-  try {
-
-    await api(
-      `/api/messages/${selectedUser.id}`,
-      {
-        method: "POST",
-
-        body: JSON.stringify({
-          body
-        })
-      }
-    );
-
-
-    input.value = "";
-
-
-    await openChat(
-      selectedUser.id,
-      selectedUser.name
-    );
-
-  } catch (error) {
-
-    alert(error.message);
-
-  }
-
-}
-
-
-function escapeHtml(value) {
-
-  return String(
-    value ?? ""
-  ).replace(
-    /[&<>"']/g,
-    c => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    }[c])
-  );
-
-}
-
-
-function formatDate(value) {
-
-  return new Date(value)
-    .toLocaleString(
-      "ar-TN"
-    );
-
-}
-
-
-document.getElementById(
-  "logout"
-).onclick = async function() {
-
-  const t =
-    getToken();
-
-
-  if (t) {
-
-    await fetch(
-      "/api/logout",
-      {
-        method: "POST",
-
-        headers: {
-          "Authorization":
-            "Bearer " + t
-        }
-      }
-    );
-
-  }
-
-
-  sessionStorage.clear();
-
-  location.replace(
-    "/login.html"
-  );
-
-};
-
-
-init();
-
-</script>
+<script src="/app.js"></script>
 
 </body>
 </html>
