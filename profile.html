@@ -19,186 +19,95 @@
 
 </head>
 
-<body>
 
-<header>
+<body data-page="profile">
 
-  <div class="welcome">
+
+<header class="top-header">
+
+  <div class="header-user">
+
+    <span>
+      👋 مرحبًا،
+    </span>
+
+    <strong data-user-name>
+      ...
+    </strong>
 
     <button
-      id="logout"
-      class="small"
+      id="logoutButton"
+      class="logout-button"
     >
       خروج
     </button>
 
-    <span>
-      👋
-      <strong id="username">...</strong>
-    </span>
-
   </div>
 
-  <div class="brand">
+  <div class="logo">
     SocialNet
   </div>
 
 </header>
 
 
-<nav>
-
-  <button
-    onclick="location.href='/index.html'"
-  >
-    🏠 الرئيسية
-  </button>
-
-  <button
-    onclick="location.href='/index.html#profile'"
-  >
-    👤 ملفي
-  </button>
-
-  <button
-    onclick="location.href='/index.html#friends'"
-  >
-    👥 المستخدمون
-  </button>
-
-  <button
-    onclick="location.href='/index.html#messages'"
-  >
-    💬 الرسائل
-  </button>
-
-</nav>
+<main class="main-container">
 
 
-<main>
+  <nav class="nav-bar">
 
-  <div class="panel profile">
+    <a
+      href="index.html"
+      class="nav-item"
+    >
+      🏠 الرئيسية
+    </a>
 
-    <div class="avatar">
+    <a
+      href="profile.html"
+      class="nav-item"
+    >
+      👤 ملفي
+    </a>
+
+    <a
+      href="friends.html"
+      class="nav-item"
+    >
+      👥 الأصدقاء
+    </a>
+
+    <a
+      href="messages.html"
+      class="nav-item"
+    >
+      💬 الرسائل
+    </a>
+
+  </nav>
+
+
+  <section class="card profile-card">
+
+    <div class="profile-avatar">
       👤
     </div>
 
-    <h2 id="profileName">
+    <h1 id="profileName">
       ...
-    </h2>
+    </h1>
 
     <p>
-      هذا ملفك الشخصي في SocialNet.
+      مرحبًا بك في ملفك الشخصي على SocialNet.
     </p>
 
-  </div>
+  </section>
+
 
 </main>
 
 
-<script>
-
-async function init() {
-
-  const token =
-    sessionStorage.getItem(
-      "sn_token"
-    );
-
-
-  if (!token) {
-
-    location.replace(
-      "/login.html"
-    );
-
-    return;
-
-  }
-
-
-  const response =
-    await fetch(
-      "/api/me",
-      {
-        headers: {
-          "Authorization":
-            "Bearer " + token
-        }
-      }
-    );
-
-
-  if (!response.ok) {
-
-    sessionStorage.clear();
-
-    location.replace(
-      "/login.html"
-    );
-
-    return;
-
-  }
-
-
-  const data =
-    await response.json();
-
-
-  document.getElementById(
-    "username"
-  ).textContent =
-    data.user.name;
-
-
-  document.getElementById(
-    "profileName"
-  ).textContent =
-    data.user.name;
-
-}
-
-
-document.getElementById(
-  "logout"
-).onclick = async function() {
-
-  const token =
-    sessionStorage.getItem(
-      "sn_token"
-    );
-
-
-  if (token) {
-
-    await fetch(
-      "/api/logout",
-      {
-        method: "POST",
-
-        headers: {
-          "Authorization":
-            "Bearer " + token
-        }
-      }
-    );
-
-  }
-
-
-  sessionStorage.clear();
-
-  location.replace(
-    "/login.html"
-  );
-
-};
-
-
-init();
-
-</script>
+<script src="/app.js"></script>
 
 </body>
 </html>
