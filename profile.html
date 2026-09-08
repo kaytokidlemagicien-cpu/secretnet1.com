@@ -1,49 +1,204 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
   <title>ملفي - SocialNet</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background-color: #f4f6f9; color: #333; }
-    header { background: #fff; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eef0f4; }
-    .logo { font-size: 24px; font-weight: 800; color: #4f46e5; }
-    .nav-bar { display: flex; justify-content: center; gap: 10px; margin: 20px 0; }
-    .nav-item { padding: 10px 18px; border-radius: 10px; background: #fff; color: #555; text-decoration: none; font-size: 14px; font-weight: 500; }
-    .nav-item.active { background: #e0e7ff; color: #4f46e5; font-weight: bold; }
-    .main-container { max-width: 680px; margin: 0 auto; padding: 0 15px; }
-    .card { background: #fff; border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
-    .avatar { font-size: 50px; margin-bottom: 10px; }
-  </style>
+
+  <link
+    rel="stylesheet"
+    href="/style.css"
+  >
+
 </head>
+
 <body>
-  <header>
-    <div id="usernameDisplay">...</div>
-    <div class="logo">SocialNet</div>
-  </header>
-  <div class="main-container">
-    <div class="nav-bar">
-      <a href="profile.html" class="nav-item active">👤 ملفي</a>
-      <a href="messages.html" class="nav-item">💬 الرسائل</a>
-      <a href="friends.html" class="nav-item">👥 الأصدقاء</a>
-      <a href="index.html" class="nav-item">🏠 الرئيسية</a>
-    </div>
-    <div class="card">
-      <div class="avatar">👤</div>
-      <h2 id="profileName">...</h2>
-      <p style="color: #666; margin-top: 8px;">مرحباً بك في صفحة ملفك الشخصي.</p>
-    </div>
+
+<header>
+
+  <div class="welcome">
+
+    <button
+      id="logout"
+      class="small"
+    >
+      خروج
+    </button>
+
+    <span>
+      👋
+      <strong id="username">...</strong>
+    </span>
+
   </div>
-  <script>
-    async function init() {
-      const res = await fetch('/api/me');
-      if (!res.ok) { location.href = '/login.html'; return; }
-      const data = await res.json();
-      document.getElementById('usernameDisplay').innerText = '👋 ' + data.user.name;
-      document.getElementById('profileName').innerText = data.user.name;
-    }
-    init();
-  </script>
+
+  <div class="brand">
+    SocialNet
+  </div>
+
+</header>
+
+
+<nav>
+
+  <button
+    onclick="location.href='/index.html'"
+  >
+    🏠 الرئيسية
+  </button>
+
+  <button
+    onclick="location.href='/index.html#profile'"
+  >
+    👤 ملفي
+  </button>
+
+  <button
+    onclick="location.href='/index.html#friends'"
+  >
+    👥 المستخدمون
+  </button>
+
+  <button
+    onclick="location.href='/index.html#messages'"
+  >
+    💬 الرسائل
+  </button>
+
+</nav>
+
+
+<main>
+
+  <div class="panel profile">
+
+    <div class="avatar">
+      👤
+    </div>
+
+    <h2 id="profileName">
+      ...
+    </h2>
+
+    <p>
+      هذا ملفك الشخصي في SocialNet.
+    </p>
+
+  </div>
+
+</main>
+
+
+<script>
+
+async function init() {
+
+  const token =
+    sessionStorage.getItem(
+      "sn_token"
+    );
+
+
+  if (!token) {
+
+    location.replace(
+      "/login.html"
+    );
+
+    return;
+
+  }
+
+
+  const response =
+    await fetch(
+      "/api/me",
+      {
+        headers: {
+          "Authorization":
+            "Bearer " + token
+        }
+      }
+    );
+
+
+  if (!response.ok) {
+
+    sessionStorage.clear();
+
+    location.replace(
+      "/login.html"
+    );
+
+    return;
+
+  }
+
+
+  const data =
+    await response.json();
+
+
+  document.getElementById(
+    "username"
+  ).textContent =
+    data.user.name;
+
+
+  document.getElementById(
+    "profileName"
+  ).textContent =
+    data.user.name;
+
+}
+
+
+document.getElementById(
+  "logout"
+).onclick = async function() {
+
+  const token =
+    sessionStorage.getItem(
+      "sn_token"
+    );
+
+
+  if (token) {
+
+    await fetch(
+      "/api/logout",
+      {
+        method: "POST",
+
+        headers: {
+          "Authorization":
+            "Bearer " + token
+        }
+      }
+    );
+
+  }
+
+
+  sessionStorage.clear();
+
+  location.replace(
+    "/login.html"
+  );
+
+};
+
+
+init();
+
+</script>
+
 </body>
 </html>
