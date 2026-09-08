@@ -166,18 +166,21 @@ app.get("/api/posts", requireAuth, async (req, res, next) => {
 app.post("/api/posts", writeLimiter, requireAuth, async (req, res, next) => {
   try {
     const body = String(req.body?.body || "").trim();
-    const imageUrl = String(req.body?.imageUrl || "").trim();
+    const imageUrl = String(req.body?.imageUrl || req.body?.file_url || "").trim();
 
     if (!body && !imageUrl) {
       return res.status(400).json({ error: "يرجى كتابة نص أو وضع رابط صورة." });
     }
 
     const { rows } = await pool.query(
-      "INSERT INTO posts(author_id, body, file_url) VALUES($1, $2, $3) RETURNING id",
+      "INSERT INTO posts(author_id, body, file_url) VALUES($1, $2, $3) RETURNING id, created_at",
       [req.user.id, body, imageUrl || null]
     );
     res.json({ ok: true, id: rows[0].id });
-  } catch (e) { next(e); }
+  } catch (e) { 
+    console.error("Error creating post in DB:", e);
+    next(e); 
+  }
 });
 
 app.post("/api/posts/:id/like", writeLimiter, requireAuth, async (req, res, next) => {
@@ -205,7 +208,7 @@ app.post("/api/posts/:id/comments", writeLimiter, requireAuth, async (req, res, 
 });
 
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error("Unhandled Error:", err);
   res.status(500).json({ error: "حدث خطأ في الخادم." });
 });
 
