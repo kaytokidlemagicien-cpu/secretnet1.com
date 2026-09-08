@@ -22,3 +22,18 @@
 .hidden{display:none!important}.muted{color:var(--muted)}
 @media(max-width:1050px){.grid{grid-template-columns:200px minmax(0,1fr)}.right-side{display:none}}
 @media(max-width:720px){.topbar{height:62px;padding:0 12px}.brand{font-size:18px}.current-user span{display:none}.page{padding:12px 9px 75px}.grid{display:block}.side{position:static;margin-bottom:12px}.side-card{padding:5px}.profile-mini{display:none}.nav{flex-direction:row;overflow:auto}.nav a{white-space:nowrap;padding:10px 12px;font-size:12px}.messages{grid-template-columns:1fr}.people{min-height:auto}.chat{min-height:570px}.messages-list{min-height:420px}.profile-info{grid-template-columns:1fr}.comment-form{flex-direction:column}.comment-form .btn{width:100%}.user-row{align-items:stretch;flex-direction:column}.user-row .btn{width:100%}.post,.composer,.section-card{padding:14px}.bubble{max-width:88%}}
+
+.avatar-img{object-fit:cover;overflow:hidden}.avatar-large{width:120px;height:120px;font-size:42px;object-fit:cover;border:5px solid #fff;box-shadow:0 10px 25px rgba(0,0,0,.12)}.user-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.btn-small{padding:8px 10px;font-size:13px}.btn:disabled{opacity:.6;cursor:not-allowed}.message-row{display:flex;align-items:flex-end;gap:8px;margin:8px 0}.message-row.mine{justify-content:flex-start;flex-direction:row-reverse}.message-row .avatar{width:34px;height:34px;font-size:15px}.message-row .bubble{max-width:75%;}.person{display:flex!important;align-items:center!important;gap:9px!important}.person .avatar{width:38px;height:38px;font-size:16px;object-fit:cover}.upload-status{min-height:20px;margin-top:8px;font-size:13px}.profile-main .btn{margin-top:8px}.profile-main{padding-bottom:24px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.side,.right-side{position:static}.right-side{display:none}.page{padding:14px 10px 50px}.topbar{padding:0 12px}.user-actions{justify-content:flex-start}}
+
+
+/* الوضع الداكن */
+html.dark{--bg:#0f1220;--card:#171a2a;--line:#2b3045;--text:#eef1ff;--muted:#aab1c8;--soft:#22263a;--danger:#ff7b83}
+html.dark body{background:var(--bg);color:var(--text)}
+html.dark .topbar{background:rgba(23,26,42,.94)}
+html.dark .nav a{color:#b9c0d7}html.dark .nav a:hover{background:#22263a}html.dark .nav a.active{background:#302d5e;color:#c9c5ff}
+html.dark .composer textarea,html.dark .composer-url,html.dark .search,html.dark .info-box,html.dark .messages-list{background:#202438;color:var(--text)}
+html.dark input,html.dark textarea{color:var(--text)}
+html.dark .comment{background:#202438}html.dark .bubble.other{background:#191d2d;border-color:var(--line)}
+html.dark .logout-button{background:#3a2025;color:#ff9ca2}html.dark .login-page{background:#0f1220}html.dark .login-card{background:var(--card)}
+html.dark .profile-main .avatar{border-color:var(--card)}

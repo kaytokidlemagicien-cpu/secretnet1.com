@@ -560,6 +560,34 @@ async function initDb() {
         `);
 
 
+
+        /* =================================================
+           FRIENDS
+        ================================================= */
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS friendships (
+                id BIGSERIAL PRIMARY KEY,
+                requester_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                addressee_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending','accepted','rejected')),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CHECK (requester_id <> addressee_id),
+                UNIQUE (requester_id, addressee_id)
+            );
+        `);
+        await pool.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS friendships_pair_unique
+            ON friendships (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id));
+        `);
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS friendships_requester_idx ON friendships(requester_id, status);
+        `);
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS friendships_addressee_idx ON friendships(addressee_id, status);
+        `);
+
         /* =================================================
            INDEXES
         ================================================= */
@@ -1263,108 +1291,43 @@ app.post(
 
 app.post(
     "/api/profile/avatar",
-    writeLimiter,
+    uploadLimiter,
     requireAuth,
-    async (
-        req,
-        res,
-        next
-    ) => {
-
+    upload.single("image"),
+    async (req, res, next) => {
         try {
+            let imageUrl = String(req.body?.imageUrl || req.body?.image_url || "").trim();
 
-            const imageUrl =
-                String(
-                    req.body?.imageUrl ||
-                    req.body?.image_url ||
-                    ""
-                ).trim();
-
-
-            if (!imageUrl) {
-
-                return res
-                    .status(400)
-                    .json({
-
-                        error:
-                            "رابط الصورة غير موجود."
-
-                    });
-
+            if (req.file) {
+                if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+                    return res.status(500).json({ error: "تخزين الصور غير مُعدّ بعد. أضف بيانات Cloudinary إلى Render." });
+                }
+                const publicId = crypto.randomBytes(16).toString("hex");
+                const result = await new Promise((resolve, reject) => {
+                    const stream = cloudinary.uploader.upload_stream({
+                        folder: "socialnet/avatars",
+                        public_id: publicId,
+                        resource_type: "image",
+                        overwrite: false,
+                        transformation: [{ quality: "auto" }, { fetch_format: "auto" }]
+                    }, (error, result) => error ? reject(error) : resolve(result));
+                    stream.end(req.file.buffer);
+                });
+                imageUrl = result.secure_url;
             }
 
-
-            if (
-                imageUrl.length > 2000
-            ) {
-
-                return res
-                    .status(400)
-                    .json({
-
-                        error:
-                            "رابط الصورة طويل جدًا."
-
-                    });
-
+            if (!imageUrl || imageUrl.length > 2000) {
+                return res.status(400).json({ error: "اختر صورة صحيحة." });
             }
 
+            const result = await pool.query(`
+                UPDATE users SET avatar_url = $1
+                WHERE id = $2
+                RETURNING id, name, avatar_url, created_at
+            `, [imageUrl, req.user.id]);
 
-            const result =
-                await pool.query(
-                    `
-                    UPDATE users
-
-                    SET avatar_url = $1
-
-                    WHERE id = $2
-
-                    RETURNING
-                        id,
-                        name,
-                        avatar_url,
-                        created_at
-                    `,
-                    [
-                        imageUrl,
-                        req.user.id
-                    ]
-                );
-
-
-            if (
-                !result.rows.length
-            ) {
-
-                return res
-                    .status(404)
-                    .json({
-
-                        error:
-                            "المستخدم غير موجود."
-
-                    });
-
-            }
-
-
-            res.json({
-
-                ok:
-                    true,
-
-                user:
-                    result.rows[0]
-
-            });
-
-        } catch (err) {
-
-            next(err);
-
-        }
-
+            res.json({ ok: true, user: result.rows[0] });
+        } catch (err) { next(err); }
     }
 );
 
@@ -2702,6 +2665,106 @@ app.post(
     }
 );
 
+
+
+/* =========================================================
+   نظام الأصدقاء
+========================================================= */
+
+app.get("/api/friends", requireAuth, async (req, res, next) => {
+    try {
+        const result = await pool.query(`
+            SELECT u.id, u.name, u.avatar_url, u.created_at
+            FROM users u
+            JOIN friendships f ON (
+                (f.requester_id = $1 AND f.addressee_id = u.id) OR
+                (f.addressee_id = $1 AND f.requester_id = u.id)
+            )
+            WHERE f.status = 'accepted'
+            ORDER BY u.name ASC
+        `, [req.user.id]);
+        res.json({ friends: result.rows });
+    } catch (err) { next(err); }
+});
+
+app.get("/api/friends/requests", requireAuth, async (req, res, next) => {
+    try {
+        const result = await pool.query(`
+            SELECT f.id, f.requester_id, f.created_at,
+                   u.name, u.avatar_url
+            FROM friendships f JOIN users u ON u.id = f.requester_id
+            WHERE f.addressee_id = $1 AND f.status = 'pending'
+            ORDER BY f.created_at DESC
+        `, [req.user.id]);
+        const sent = await pool.query(`
+            SELECT f.id, f.addressee_id, f.created_at,
+                   u.name, u.avatar_url
+            FROM friendships f JOIN users u ON u.id = f.addressee_id
+            WHERE f.requester_id = $1 AND f.status = 'pending'
+            ORDER BY f.created_at DESC
+        `, [req.user.id]);
+        res.json({ incoming: result.rows, outgoing: sent.rows });
+    } catch (err) { next(err); }
+});
+
+app.post("/api/friends/request/:userId", requireAuth, async (req, res, next) => {
+    try {
+        const other = Number(req.params.userId);
+        if (!Number.isInteger(other) || other <= 0 || other === Number(req.user.id))
+            return res.status(400).json({ error: "طلب صداقة غير صالح." });
+
+        const user = await pool.query("SELECT id FROM users WHERE id=$1", [other]);
+        if (!user.rows.length) return res.status(404).json({ error: "المستخدم غير موجود." });
+
+        const existing = await pool.query(`
+            SELECT id, requester_id, addressee_id, status
+            FROM friendships
+            WHERE (requester_id=$1 AND addressee_id=$2)
+               OR (requester_id=$2 AND addressee_id=$1)
+            LIMIT 1
+        `, [req.user.id, other]);
+
+        if (existing.rows.length) {
+            const f = existing.rows[0];
+            if (f.status === "accepted") return res.status(400).json({ error: "أنتما صديقان بالفعل." });
+            if (f.status === "pending") return res.status(400).json({ error: "يوجد طلب صداقة معلّق بالفعل." });
+            await pool.query("DELETE FROM friendships WHERE id=$1", [f.id]);
+        }
+
+        const r = await pool.query(`
+            INSERT INTO friendships(requester_id, addressee_id, status)
+            VALUES($1,$2,'pending')
+            RETURNING *
+        `, [req.user.id, other]);
+        res.json({ ok: true, friendship: r.rows[0] });
+    } catch (err) { next(err); }
+});
+
+app.post("/api/friends/accept/:id", requireAuth, async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        const r = await pool.query(`
+            UPDATE friendships SET status='accepted', updated_at=NOW()
+            WHERE id=$1 AND addressee_id=$2 AND status='pending'
+            RETURNING *
+        `, [id, req.user.id]);
+        if (!r.rows.length) return res.status(404).json({ error: "طلب الصداقة غير موجود." });
+        res.json({ ok: true, friendship: r.rows[0] });
+    } catch (err) { next(err); }
+});
+
+app.delete("/api/friends/:userId", requireAuth, async (req, res, next) => {
+    try {
+        const other = Number(req.params.userId);
+        await pool.query(`
+            DELETE FROM friendships
+            WHERE ((requester_id=$1 AND addressee_id=$2)
+                OR (requester_id=$2 AND addressee_id=$1))
+              AND status='accepted'
+        `, [req.user.id, other]);
+        res.json({ ok: true });
+    } catch (err) { next(err); }
+});
 
 /* =========================================================
    الملفات الثابتة

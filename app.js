@@ -10,6 +10,9 @@ const SocialNet={
  async logout(){try{if(this.token())await this.api("/api/logout",{method:"POST"})}catch(e){}finally{sessionStorage.clear();location.replace("/login.html")}},
  escape(t){return String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))},
  escapeAttr(t){return this.escape(t).replace(/`/g,"&#096;")},
- date(d){return new Date(d).toLocaleString("ar-TN",{dateStyle:"medium",timeStyle:"short"})}
+ date(d){return new Date(d).toLocaleString("ar-TN",{dateStyle:"medium",timeStyle:"short"})},
+avatarHTML(url,name=""){const safe=this.escapeAttr(url||""); return url
+? `<img class="avatar avatar-img" src="${safe}" alt="${this.escapeAttr(name)}" loading="lazy" onerror="this.onerror=null;this.src='';this.classList.add('avatar-fallback');this.outerHTML='<span class="avatar">👤</span>'">`
+: `<span class="avatar">👤</span>`;}
 };
 window.SocialNet=SocialNet;
