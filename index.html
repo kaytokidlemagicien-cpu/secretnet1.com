@@ -75,7 +75,7 @@
 
   <script>
     async function init() {
-      const res = await fetch('/api/me');
+      const res = await fetch('/api/me?t=' + Date.now());
       if (!res.ok) { location.href = '/login.html'; return; }
       const data = await res.json();
       document.getElementById('usernameDisplay').innerText = data.user.name;
@@ -88,53 +88,57 @@
     }
 
     async function loadPosts() {
-      const res = await fetch('/api/posts');
-      if (!res.ok) return;
-      const data = await res.json();
-      const feed = document.getElementById('postsFeed');
-      feed.innerHTML = '';
+      try {
+        const res = await fetch('/api/posts?t=' + Date.now());
+        if (!res.ok) return;
+        const data = await res.json();
+        const feed = document.getElementById('postsFeed');
+        feed.innerHTML = '';
 
-      data.posts.forEach(post => {
-        let imgHtml = '';
-        if (post.file_url) {
-          imgHtml = `<img src="${escape(post.file_url)}" class="post-img" />`;
-        }
+        data.posts.forEach(post => {
+          let imgHtml = '';
+          if (post.file_url) {
+            imgHtml = `<img src="${escape(post.file_url)}" class="post-img" />`;
+          }
 
-        let commentsHtml = (post.comments || []).map(c => `
-          <div class="comment-item">
-            <div class="comment-user">${escape(c.author)}</div>
-            <div>${escape(c.body)}</div>
-          </div>
-        `).join('');
-
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-          <div class="post-header">
-            <span class="post-time">${new Date(post.created_at).toLocaleString('ar')}</span>
-            <div class="post-author-box">
-              <span>${escape(post.author)}</span>
-              👤
+          let commentsHtml = (post.comments || []).map(c => `
+            <div class="comment-item">
+              <div class="comment-user">${escape(c.author)}</div>
+              <div>${escape(c.body)}</div>
             </div>
-          </div>
-          <div class="post-content">${escape(post.body)}</div>
-          ${imgHtml}
-          <div class="post-divider"></div>
+          `).join('');
 
-          <div class="like-box">
-            <span>${post.likes_count || 0}</span>
-            <button onclick="likePost(${post.id})" class="btn-like">❤️</button>
-          </div>
-          
-          <div class="comment-list">${commentsHtml}</div>
-          
-          <div class="comment-form">
-            <button onclick="sendComment(${post.id})" class="btn-comment">إرسال</button>
-            <input type="text" id="comm-input-${post.id}" class="comment-input" placeholder="اكتب تعليقًا..." />
-          </div>
-        `;
-        feed.appendChild(card);
-      });
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `
+            <div class="post-header">
+              <span class="post-time">${new Date(post.created_at).toLocaleString('ar')}</span>
+              <div class="post-author-box">
+                <span>${escape(post.author)}</span>
+                👤
+              </div>
+            </div>
+            <div class="post-content">${escape(post.body)}</div>
+            ${imgHtml}
+            <div class="post-divider"></div>
+
+            <div class="like-box">
+              <span>${post.likes_count || 0}</span>
+              <button onclick="likePost(${post.id})" class="btn-like">❤️</button>
+            </div>
+            
+            <div class="comment-list">${commentsHtml}</div>
+            
+            <div class="comment-form">
+              <button onclick="sendComment(${post.id})" class="btn-comment">إرسال</button>
+              <input type="text" id="comm-input-${post.id}" class="comment-input" placeholder="اكتب تعليقًا..." />
+            </div>
+          `;
+          feed.appendChild(card);
+        });
+      } catch (e) {
+        console.error("Failed to load posts", e);
+      }
     }
 
     async function createPost(event) {
@@ -159,7 +163,7 @@
         const res = await fetch('/api/posts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ body, imageUrl })
+          body: JSON.stringify({ body, imageUrl, file_url: imageUrl })
         });
 
         if (res.ok) {
