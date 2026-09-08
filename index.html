@@ -76,7 +76,11 @@
   <script>
     async function init() {
       const res = await fetch('/api/me?t=' + Date.now());
-      if (!res.ok) { location.href = '/login.html'; return; }
+      if (!res.ok) { 
+        // توجيه تلقائي لصفحة الدخول إذا لم يسجل الدخول
+        location.href = '/login.html'; 
+        return; 
+      }
       const data = await res.json();
       document.getElementById('usernameDisplay').innerText = data.user.name;
       loadPosts();
@@ -90,7 +94,10 @@
     async function loadPosts() {
       try {
         const res = await fetch('/api/posts?t=' + Date.now());
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (res.status === 401) location.href = '/login.html';
+          return;
+        }
         const data = await res.json();
         const feed = document.getElementById('postsFeed');
         feed.innerHTML = '';
@@ -171,8 +178,13 @@
           imageInput.value = '';
           await loadPosts();
         } else {
-          const errData = await res.json();
-          alert(errData.error || "حدث خطأ أثناء النشر.");
+          const errData = await res.json().catch(() => ({}));
+          if (res.status === 401) {
+            alert("يرجى تسجيل الدخول أولاً للنشر.");
+            location.href = '/login.html';
+          } else {
+            alert(errData.error || "حدث خطأ أثناء النشر.");
+          }
         }
       } catch (err) {
         console.error("Error creating post:", err);
