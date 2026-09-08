@@ -77,7 +77,6 @@
     async function init() {
       const res = await fetch('/api/me?t=' + Date.now());
       if (!res.ok) { 
-        // توجيه تلقائي لصفحة الدخول إذا لم يسجل الدخول
         location.href = '/login.html'; 
         return; 
       }
