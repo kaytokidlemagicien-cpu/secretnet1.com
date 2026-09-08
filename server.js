@@ -108,6 +108,7 @@ const SITE_PASSWORD =
 // Nom exact du compte qui possède les droits Admin.
 // À définir dans Render : ADMIN_NAME=VotreNom
 const ADMIN_NAME = String(process.env.ADMIN_NAME || "").trim();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "");
 
 // Optionnel : adresse(s) IP autorisée(s) pour le panneau Admin.
 // Exemple : ADMIN_IPS=1.2.3.4,5.6.7.8
@@ -962,9 +963,20 @@ function adminIpAllowed(req) {
     return ADMIN_IPS.includes(ip);
 }
 
+function adminPasswordValid(req) {
+    if (!ADMIN_PASSWORD) return false;
+    const provided = String(req.headers["x-admin-password"] || "");
+    const a = Buffer.from(provided);
+    const b = Buffer.from(ADMIN_PASSWORD);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 function requireAdmin(req, res, next) {
     if (!isAdminUser(req)) {
-        return res.status(403).json({ error: "Accès administrateur refusé." });
+        return res.status(403).json({ error: "Accès administrateur refusé pour ce compte." });
+    }
+    if (!adminPasswordValid(req)) {
+        return res.status(401).json({ error: "Mot de passe Admin incorrect ou absent." });
     }
     if (!adminIpAllowed(req)) {
         return res.status(403).json({ error: "Ce panneau Admin n’est pas autorisé depuis cet appareil/réseau." });
