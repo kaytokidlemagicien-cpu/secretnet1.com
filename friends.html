@@ -10,7 +10,7 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>المستخدمون - SocialNet</title>
+  <title>الأصدقاء - SocialNet</title>
 
   <link
     rel="stylesheet"
@@ -19,257 +19,95 @@
 
 </head>
 
-<body>
 
-<header>
+<body data-page="friends">
 
-  <div class="welcome">
+
+<header class="top-header">
+
+  <div class="header-user">
+
+    <span>
+      👋 مرحبًا،
+    </span>
+
+    <strong data-user-name>
+      ...
+    </strong>
 
     <button
-      id="logout"
-      class="small"
+      id="logoutButton"
+      class="logout-button"
     >
       خروج
     </button>
 
-    <span>
-      👋
-      <strong id="username">...</strong>
-    </span>
-
   </div>
 
-  <div class="brand">
+  <div class="logo">
     SocialNet
   </div>
 
 </header>
 
 
-<nav>
-
-  <button
-    onclick="location.href='/index.html'"
-  >
-    🏠 الرئيسية
-  </button>
-
-  <button
-    onclick="location.href='/profile.html'"
-  >
-    👤 ملفي
-  </button>
-
-  <button class="active">
-    👥 المستخدمون
-  </button>
-
-  <button
-    onclick="location.href='/messages.html'"
-  >
-    💬 الرسائل
-  </button>
-
-</nav>
+<main class="main-container">
 
 
-<main>
+  <nav class="nav-bar">
 
-  <div class="panel">
+    <a
+      href="index.html"
+      class="nav-item"
+    >
+      🏠 الرئيسية
+    </a>
+
+    <a
+      href="profile.html"
+      class="nav-item"
+    >
+      👤 ملفي
+    </a>
+
+    <a
+      href="friends.html"
+      class="nav-item"
+    >
+      👥 الأصدقاء
+    </a>
+
+    <a
+      href="messages.html"
+      class="nav-item"
+    >
+      💬 الرسائل
+    </a>
+
+  </nav>
+
+
+  <section class="card">
 
     <h2>
       👥 المستخدمون
     </h2>
 
-    <div id="usersList">
-      جاري التحميل...
+    <div id="friendsList">
+
+      <div class="empty">
+        جاري تحميل المستخدمين...
+      </div>
+
     </div>
 
-  </div>
+  </section>
+
 
 </main>
 
 
-<script>
-
-function token() {
-
-  return sessionStorage.getItem(
-    "sn_token"
-  );
-
-}
-
-
-async function init() {
-
-  const t = token();
-
-
-  if (!t) {
-
-    location.replace(
-      "/login.html"
-    );
-
-    return;
-
-  }
-
-
-  const meResponse =
-    await fetch(
-      "/api/me",
-      {
-        headers: {
-          "Authorization":
-            "Bearer " + t
-        }
-      }
-    );
-
-
-  if (!meResponse.ok) {
-
-    sessionStorage.clear();
-
-    location.replace(
-      "/login.html"
-    );
-
-    return;
-
-  }
-
-
-  const me =
-    await meResponse.json();
-
-
-  document.getElementById(
-    "username"
-  ).textContent =
-    me.user.name;
-
-
-  const response =
-    await fetch(
-      "/api/users",
-      {
-        headers: {
-          "Authorization":
-            "Bearer " + t
-        }
-      }
-    );
-
-
-  if (!response.ok) {
-
-    return;
-
-  }
-
-
-  const data =
-    await response.json();
-
-
-  const list =
-    document.getElementById(
-      "usersList"
-    );
-
-
-  if (!data.users.length) {
-
-    list.innerHTML =
-      "<p>لا يوجد مستخدمون آخرون.</p>";
-
-    return;
-
-  }
-
-
-  list.innerHTML =
-    data.users.map(user => `
-
-      <div class="userRow">
-
-        <span>
-          👤 ${escapeHtml(user.name)}
-        </span>
-
-        <button
-          onclick="
-            location.href =
-            '/messages.html?user=${user.id}'
-          "
-        >
-          مراسلة
-        </button>
-
-      </div>
-
-    `).join("");
-
-}
-
-
-function escapeHtml(value) {
-
-  return String(
-    value ?? ""
-  ).replace(
-    /[&<>"']/g,
-    c => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    }[c])
-  );
-
-}
-
-
-document.getElementById(
-  "logout"
-).onclick = async function() {
-
-  const t = token();
-
-
-  if (t) {
-
-    await fetch(
-      "/api/logout",
-      {
-        method: "POST",
-
-        headers: {
-          "Authorization":
-            "Bearer " + t
-        }
-      }
-    );
-
-  }
-
-
-  sessionStorage.clear();
-
-  location.replace(
-    "/login.html"
-  );
-
-};
-
-
-init();
-
-</script>
+<script src="/app.js"></script>
 
 </body>
 </html>
