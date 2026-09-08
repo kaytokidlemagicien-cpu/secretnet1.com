@@ -1,949 +1,209 @@
-const $ = id => document.getElementById(id);
+// ==========================================
+// SocialNet - Client
+// ==========================================
 
-let me = null;
+const SocialNet = {
 
-let selectedUser = null;
+  getToken() {
 
-
-/* =========================
-   الجلسة الخاصة بالتبويب
-========================= */
-
-function getToken() {
-
-  return sessionStorage.getItem("sn_token");
-
-}
-
-
-function clearTabSession() {
-
-  sessionStorage.removeItem("sn_token");
-
-  sessionStorage.removeItem("sn_user");
-
-}
-
-
-function authHeaders(extra = {}) {
-
-  const token = getToken();
-
-  return {
-    ...extra,
-    "Authorization": "Bearer " + token
-  };
-
-}
-
-
-/* =========================
-   API
-========================= */
-
-async function api(url, options = {}) {
-
-  const token = getToken();
-
-  if (!token) {
-
-    location.replace("/login.html");
-
-    throw new Error(
-      "لا توجد جلسة."
+    return sessionStorage.getItem(
+      "sn_token"
     );
 
-  }
-
-  const headers = {
-    ...(options.headers || {}),
-    "Authorization":
-      "Bearer " + token
-  };
+  },
 
 
-  if (
-    options.body &&
-    !headers["Content-Type"]
-  ) {
+  getUser() {
 
-    headers["Content-Type"] =
-      "application/json";
+    try {
 
-  }
+      return JSON.parse(
+        sessionStorage.getItem(
+          "sn_user"
+        ) || "null"
+      );
+
+    } catch {
+
+      return null;
+
+    }
+
+  },
 
 
-  const response =
-    await fetch(
-      url,
-      {
-        ...options,
-        headers
-      }
+  saveSession(data) {
+
+    sessionStorage.setItem(
+      "sn_token",
+      data.token
     );
 
-
-  const data =
-    await response
-      .json()
-      .catch(() => ({}));
-
-
-  if (response.status === 401) {
-
-    clearTabSession();
-
-    location.replace(
-      "/login.html"
+    sessionStorage.setItem(
+      "sn_user",
+      JSON.stringify(data.user)
     );
 
-    throw new Error(
-      "انتهت الجلسة."
+  },
+
+
+  clearSession() {
+
+    sessionStorage.removeItem(
+      "sn_token"
     );
 
-  }
-
-
-  if (!response.ok) {
-
-    throw new Error(
-      data.error ||
-      "حدث خطأ."
+    sessionStorage.removeItem(
+      "sn_user"
     );
 
-  }
+  },
 
 
-  return data;
+  async api(url, options = {}) {
 
-}
+    const token =
+      this.getToken();
 
-
-/* =========================
-   بدء التطبيق
-========================= */
-
-async function init() {
-
-  const token = getToken();
-
-  /*
-    إذا لم توجد جلسة في هذا التبويب،
-    يجب الذهاب للدخول.
-  */
-
-  if (!token) {
-
-    location.replace(
-      "/login.html"
-    );
-
-    return;
-
-  }
-
-
-  try {
-
-    const data =
-      await api("/api/me");
-
-    me = data.user;
-
-    $("usernameDisplay").textContent =
-      me.name;
-
-    $("profileName").textContent =
-      me.name;
-
-
-    await renderAll();
-
-  } catch (error) {
-
-    console.error(error);
-
-  }
-
-}
-
-
-/* =========================
-   كل البيانات
-========================= */
-
-async function renderAll() {
-
-  await Promise.all([
-    renderFeed(),
-    renderFriends(),
-    renderMessageUsers()
-  ]);
-
-}
-
-
-/* =========================
-   المنشورات
-========================= */
-
-async function renderFeed() {
-
-  const data =
-    await api(
-      "/api/posts?t=" +
-      Date.now()
-    );
-
-
-  const feed =
-    $("postsFeed");
-
-
-  if (!data.posts.length) {
-
-    feed.innerHTML = `
-      <div class="panel">
-        لا توجد منشورات بعد.
-        كن أول من ينشر! ✨
-      </div>
-    `;
-
-    return;
-
-  }
-
-
-  feed.innerHTML =
-    data.posts.map(post => {
-
-      const comments =
-        (post.comments || [])
-          .map(comment => `
-
-            <div class="comment">
-
-              <strong>
-                ${esc(comment.author)}
-              </strong>
-
-              : ${esc(comment.body)}
-
-            </div>
-
-          `)
-          .join("");
-
-
-      const image =
-        post.image_url
-          ? `
-            <img
-              src="${escAttr(post.image_url)}"
-              alt="صورة المنشور"
-              onerror="this.remove()"
-            >
-          `
-          : "";
-
-
-      return `
-
-        <article class="post">
-
-          <div class="postHead">
-
-            <span class="postName">
-              👤 ${esc(post.author)}
-            </span>
-
-            <span class="date">
-              ${formatDate(post.created_at)}
-            </span>
-
-          </div>
-
-
-          ${
-            post.body
-              ? `
-                <div class="postText">
-                  ${esc(post.body)}
-                </div>
-              `
-              : ""
+    const headers = {
+      ...(options.body
+        ? {
+            "Content-Type":
+              "application/json"
           }
-
-
-          ${image}
-
-
-          <div class="actions">
-
-            <button
-              class="${post.liked ? "liked" : ""}"
-              onclick="likePost(${post.id})"
-            >
-              ❤️ ${post.likes_count || 0}
-            </button>
-
-          </div>
-
-
-          <div>
-
-            ${comments}
-
-          </div>
-
-
-          <form
-            class="commentBox"
-            onsubmit="
-              commentPost(
-                event,
-                ${post.id}
-              )
-            "
-          >
-
-            <input
-              id="comment-${post.id}"
-              maxlength="1000"
-              placeholder="اكتب تعليقًا..."
-              required
-            >
-
-            <button>
-              إرسال
-            </button>
-
-          </form>
-
-        </article>
-
-      `;
-
-    }).join("");
-
-}
-
-
-/* =========================
-   إنشاء منشور
-========================= */
-
-$("publishButton").onclick =
-  async function() {
-
-    const bodyInput =
-      $("postBody");
-
-    const imageInput =
-      $("postImage");
-
-    const button =
-      $("publishButton");
-
-
-    const body =
-      bodyInput.value.trim();
-
-    const imageUrl =
-      imageInput.value.trim();
-
-
-    if (!body && !imageUrl) {
-
-      alert(
-        "اكتب نصًا أو ضع رابط صورة."
-      );
-
-      return;
-
-    }
-
-
-    button.disabled = true;
-
-    button.textContent =
-      "جاري النشر...";
-
-
-    try {
-
-      await api(
-        "/api/posts",
-        {
-          method: "POST",
-
-          body: JSON.stringify({
-            body,
-            imageUrl
-          })
-        }
-      );
-
-
-      bodyInput.value = "";
-
-      imageInput.value = "";
-
-
-      await renderFeed();
-
-    } catch (error) {
-
-      alert(error.message);
-
-    } finally {
-
-      button.disabled = false;
-
-      button.textContent = "نشر";
-
-    }
-
-  };
-
-
-/* =========================
-   الإعجاب
-========================= */
-
-window.likePost =
-  async function(postId) {
-
-    try {
-
-      await api(
-        `/api/posts/${postId}/like`,
-        {
-          method: "POST"
-        }
-      );
-
-      await renderFeed();
-
-    } catch (error) {
-
-      alert(error.message);
-
-    }
-
-  };
-
-
-/* =========================
-   التعليق
-========================= */
-
-window.commentPost =
-  async function(event, postId) {
-
-    event.preventDefault();
-
-
-    const input =
-      $(`comment-${postId}`);
-
-
-    const body =
-      input.value.trim();
-
-
-    if (!body) {
-      return;
-    }
-
-
-    try {
-
-      await api(
-        `/api/posts/${postId}/comments`,
-        {
-          method: "POST",
-
-          body: JSON.stringify({
-            body
-          })
-        }
-      );
-
-
-      await renderFeed();
-
-    } catch (error) {
-
-      alert(error.message);
-
-    }
-
-  };
-
-
-/* =========================
-   المستخدمون
-========================= */
-
-async function renderFriends() {
-
-  const data =
-    await api(
-      "/api/users?t=" +
-      Date.now()
-    );
-
-
-  const container =
-    $("friendsList");
-
-
-  if (!data.users.length) {
-
-    container.innerHTML = `
-      <p>
-        لا يوجد مستخدمون آخرون حاليًا.
-      </p>
-    `;
-
-    return;
-
-  }
-
-
-  container.innerHTML =
-    data.users.map(user => `
-
-      <div class="userRow">
-
-        <span>
-          👤 ${esc(user.name)}
-        </span>
-
-        <button
-          onclick="
-            startChat(
-              ${user.id},
-              ${JSON.stringify(user.name)}
-            )
-          "
-        >
-          مراسلة
-        </button>
-
-      </div>
-
-    `).join("");
-
-}
-
-
-/* =========================
-   قائمة الرسائل
-========================= */
-
-async function renderMessageUsers() {
-
-  const data =
-    await api(
-      "/api/users?t=" +
-      Date.now()
-    );
-
-
-  const container =
-    $("messageUsers");
-
-
-  if (!data.users.length) {
-
-    container.innerHTML = `
-      <p>
-        لا يوجد مستخدمون آخرون.
-      </p>
-    `;
-
-    return;
-
-  }
-
-
-  container.innerHTML =
-    data.users.map(user => `
-
-      <div class="userRow">
-
-        <span>
-          👤 ${esc(user.name)}
-        </span>
-
-        <button
-          onclick="
-            startChat(
-              ${user.id},
-              ${JSON.stringify(user.name)}
-            )
-          "
-        >
-          فتح المحادثة
-        </button>
-
-      </div>
-
-    `).join("");
-
-}
-
-
-/* =========================
-   فتح محادثة
-========================= */
-
-window.startChat =
-  async function(userId, userName) {
-
-    selectedUser = {
-      id: userId,
-      name: userName
+        : {}),
+      ...(options.headers || {})
     };
 
+    if (token) {
+
+      headers.Authorization =
+        "Bearer " + token;
+
+    }
+
+    const response =
+      await fetch(url, {
+        ...options,
+        headers
+      });
+
+    const data =
+      await response
+        .json()
+        .catch(() => ({}));
+
+    if (
+      response.status === 401
+    ) {
+
+      this.clearSession();
+
+      if (
+        !location.pathname.endsWith(
+          "/login.html"
+        )
+      ) {
+
+        location.replace(
+          "/login.html"
+        );
+
+      }
+
+      throw new Error(
+        data.error ||
+        "انتهت الجلسة."
+      );
+
+    }
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        "حدث خطأ."
+      );
+
+    }
+
+    return data;
+
+  },
+
+
+  async requireLogin() {
+
+    const token =
+      this.getToken();
+
+    if (!token) {
+
+      location.replace(
+        "/login.html"
+      );
+
+      return null;
+
+    }
 
     try {
 
       const data =
-        await api(
-          `/api/messages/${userId}?t=${Date.now()}`
+        await this.api(
+          "/api/me"
         );
 
-
-      const chat =
-        $("chat");
-
-
-      chat.classList.remove(
-        "hidden"
+      sessionStorage.setItem(
+        "sn_user",
+        JSON.stringify(
+          data.user
+        )
       );
 
+      return data.user;
 
-      const messages =
-        data.messages || [];
+    } catch {
 
-
-      chat.innerHTML = `
-
-        <h3>
-          💬 محادثة مع
-          ${esc(userName)}
-        </h3>
-
-
-        <div id="messagesList">
-
-          ${
-            messages.length
-              ? messages.map(message => `
-
-                <div
-                  class="
-                    msg
-                    ${
-                      message.sender_id === me.id
-                        ? "me"
-                        : ""
-                    }
-                  "
-                >
-
-                  <strong>
-                    ${esc(message.sender)}
-                  </strong>
-
-                  <br>
-
-                  ${esc(message.body)}
-
-                  <span class="msg-time">
-                    ${formatDate(message.created_at)}
-                  </span>
-
-                </div>
-
-              `).join("")
-              : `
-                <p>
-                  لا توجد رسائل بعد.
-                </p>
-              `
-          }
-
-        </div>
-
-
-        <form
-          id="chatForm"
-          class="chatForm"
-        >
-
-          <input
-            id="messageInput"
-            maxlength="2000"
-            placeholder="اكتب رسالة..."
-            required
-          >
-
-          <button>
-            إرسال
-          </button>
-
-        </form>
-
-      `;
-
-
-      const messagesList =
-        $("messagesList");
-
-
-      messagesList.scrollTop =
-        messagesList.scrollHeight;
-
-
-      $("chatForm").onsubmit =
-        async function(event) {
-
-          event.preventDefault();
-
-          await sendMessage();
-
-        };
-
-
-    } catch (error) {
-
-      alert(error.message);
+      return null;
 
     }
 
-  };
+  },
 
 
-/* =========================
-   إرسال رسالة
-========================= */
-
-async function sendMessage() {
-
-  if (!selectedUser) {
-    return;
-  }
-
-
-  const input =
-    $("messageInput");
-
-
-  const body =
-    input.value.trim();
-
-
-  if (!body) {
-    return;
-  }
-
-
-  try {
-
-    await api(
-      `/api/messages/${selectedUser.id}`,
-      {
-        method: "POST",
-
-        body: JSON.stringify({
-          body
-        })
-      }
-    );
-
-
-    input.value = "";
-
-
-    await startChat(
-      selectedUser.id,
-      selectedUser.name
-    );
-
-  } catch (error) {
-
-    alert(error.message);
-
-  }
-
-}
-
-
-/* =========================
-   حذف منشوراتي
-========================= */
-
-$("deleteMyPosts").onclick =
-  async function() {
-
-    const confirmed =
-      confirm(
-        "هل تريد حذف جميع منشوراتك؟"
-      );
-
-
-    if (!confirmed) {
-      return;
-    }
-
+  async logout() {
 
     try {
 
-      await api(
-        "/api/my-posts",
-        {
-          method: "DELETE"
-        }
-      );
-
-
-      await renderFeed();
-
-      alert(
-        "تم حذف منشوراتك."
-      );
-
-    } catch (error) {
-
-      alert(error.message);
-
-    }
-
-  };
-
-
-/* =========================
-   تسجيل الخروج
-========================= */
-
-$("logoutButton").onclick =
-  async function() {
-
-    try {
-
-      await api(
+      await this.api(
         "/api/logout",
         {
           method: "POST"
         }
       );
 
-    } catch (error) {
+    } catch (_) {
 
-      console.error(error);
-
+      // لا مشكلة إذا انتهت الجلسة
     }
 
-
-    clearTabSession();
-
+    this.clearSession();
 
     location.replace(
       "/login.html"
     );
 
-  };
+  }
+
+};
 
 
-/* =========================
-   التنقل داخل نفس التبويب
-========================= */
+// ==========================================
+// HTML escaping
+// ==========================================
 
-document
-  .querySelectorAll("nav button")
-  .forEach(button => {
-
-    button.addEventListener(
-      "click",
-      async function() {
-
-        document
-          .querySelectorAll("nav button")
-          .forEach(item => {
-            item.classList.remove(
-              "active"
-            );
-          });
-
-
-        this.classList.add(
-          "active"
-        );
-
-
-        document
-          .querySelectorAll(".view")
-          .forEach(view => {
-            view.classList.add(
-              "hidden"
-            );
-          });
-
-
-        const view =
-          document.getElementById(
-            this.dataset.view
-          );
-
-
-        if (view) {
-
-          view.classList.remove(
-            "hidden"
-          );
-
-        }
-
-
-        /*
-          تحديث المستخدمين والرسائل
-          عند فتح أقسامها.
-        */
-
-        if (
-          this.dataset.view ===
-          "friendsView"
-        ) {
-
-          await renderFriends();
-
-        }
-
-
-        if (
-          this.dataset.view ===
-          "messagesView"
-        ) {
-
-          await renderMessageUsers();
-
-        }
-
-      }
-    );
-
-  });
-
-
-/* =========================
-   الأدوات
-========================= */
-
-function esc(value) {
+function escapeHtml(value) {
 
   return String(
     value ?? ""
@@ -961,29 +221,964 @@ function esc(value) {
 }
 
 
-function escAttr(value) {
-
-  return esc(value)
-    .replace(
-      /`/g,
-      "&#096;"
-    );
-
-}
-
+// ==========================================
+// Format date
+// ==========================================
 
 function formatDate(value) {
 
-  return new Date(value)
-    .toLocaleString(
-      "ar-TN"
+  try {
+
+    return new Date(
+      value
+    ).toLocaleString(
+      "ar-TN",
+      {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }
     );
+
+  } catch {
+
+    return "";
+
+  }
 
 }
 
 
-/* =========================
-   تشغيل
-========================= */
+// ==========================================
+// Navigation
+// ==========================================
 
-init();
+function setupNavigation() {
+
+  const current =
+    location.pathname
+      .split("/")
+      .pop() ||
+    "index.html";
+
+  document
+    .querySelectorAll(
+      ".nav-item"
+    )
+    .forEach(link => {
+
+      const href =
+        link
+          .getAttribute("href")
+          ?.split("/")
+          .pop();
+
+      if (
+        href === current
+      ) {
+
+        link.classList.add(
+          "active"
+        );
+
+      }
+
+    });
+
+}
+
+
+// ==========================================
+// Common header
+// ==========================================
+
+async function setupUserHeader() {
+
+  const user =
+    await SocialNet.requireLogin();
+
+  if (!user) return;
+
+  document
+    .querySelectorAll(
+      "[data-user-name]"
+    )
+    .forEach(element => {
+
+      element.textContent =
+        user.name;
+
+    });
+
+  const logoutButton =
+    document.getElementById(
+      "logoutButton"
+    );
+
+  if (logoutButton) {
+
+    logoutButton.onclick =
+      () => SocialNet.logout();
+
+  }
+
+  setupNavigation();
+
+  return user;
+
+}
+
+
+// ==========================================
+// HOME
+// ==========================================
+
+async function initHome() {
+
+  const user =
+    await setupUserHeader();
+
+  if (!user) return;
+
+  await loadPosts();
+
+  const publishButton =
+    document.getElementById(
+      "publishButton"
+    );
+
+  if (publishButton) {
+
+    publishButton.onclick =
+      createPost;
+
+  }
+
+}
+
+
+async function loadPosts() {
+
+  const feed =
+    document.getElementById(
+      "postsFeed"
+    );
+
+  if (!feed) return;
+
+  try {
+
+    const data =
+      await SocialNet.api(
+        "/api/posts"
+      );
+
+    if (
+      !data.posts.length
+    ) {
+
+      feed.innerHTML = `
+        <div class="card empty">
+          لا توجد منشورات بعد.
+          كن أول من ينشر! ✨
+        </div>
+      `;
+
+      return;
+
+    }
+
+    feed.innerHTML =
+      data.posts
+        .map(renderPost)
+        .join("");
+
+  } catch (error) {
+
+    feed.innerHTML = `
+      <div class="card error-box">
+        ${escapeHtml(error.message)}
+      </div>
+    `;
+
+  }
+
+}
+
+
+function renderPost(post) {
+
+  const comments =
+    (post.comments || [])
+      .map(comment => `
+        <div class="comment-item">
+
+          <div class="comment-author">
+            👤
+            ${escapeHtml(
+              comment.author
+            )}
+          </div>
+
+          <div class="comment-body">
+            ${escapeHtml(
+              comment.body
+            )}
+          </div>
+
+        </div>
+      `)
+      .join("");
+
+  const image =
+    post.image_url
+      ? `
+        <img
+          src="${escapeHtml(
+            post.image_url
+          )}"
+          class="post-image"
+          alt="صورة المنشور"
+          onerror="this.style.display='none'"
+        >
+      `
+      : "";
+
+  return `
+    <article class="card post-card">
+
+      <div class="post-header">
+
+        <div class="post-author">
+          <span class="avatar-small">
+            👤
+          </span>
+
+          <strong>
+            ${escapeHtml(
+              post.author
+            )}
+          </strong>
+        </div>
+
+        <span class="post-date">
+          ${formatDate(
+            post.created_at
+          )}
+        </span>
+
+      </div>
+
+      ${
+        post.body
+          ? `
+            <div class="post-content">
+              ${escapeHtml(
+                post.body
+              )}
+            </div>
+          `
+          : ""
+      }
+
+      ${image}
+
+      <div class="post-actions">
+
+        <button
+          class="like-button ${
+            post.liked
+              ? "liked"
+              : ""
+          }"
+          onclick="toggleLike(${post.id})"
+        >
+          ❤️
+          <span>
+            ${post.likes_count || 0}
+          </span>
+        </button>
+
+      </div>
+
+      <div class="comments">
+
+        ${
+          comments ||
+          `<div class="no-comments">
+            لا توجد تعليقات بعد.
+          </div>`
+        }
+
+      </div>
+
+      <div class="comment-form">
+
+        <input
+          id="comment-${post.id}"
+          type="text"
+          maxlength="500"
+          placeholder="اكتب تعليقًا..."
+        >
+
+        <button
+          onclick="sendComment(${post.id})"
+          class="btn-primary"
+        >
+          إرسال
+        </button>
+
+      </div>
+
+    </article>
+  `;
+
+}
+
+
+async function createPost() {
+
+  const bodyInput =
+    document.getElementById(
+      "postBody"
+    );
+
+  const imageInput =
+    document.getElementById(
+      "postImage"
+    );
+
+  const button =
+    document.getElementById(
+      "publishButton"
+    );
+
+  const body =
+    bodyInput.value.trim();
+
+  const imageUrl =
+    imageInput.value.trim();
+
+  if (
+    !body &&
+    !imageUrl
+  ) {
+
+    alert(
+      "اكتب شيئًا أو ضع رابط صورة."
+    );
+
+    return;
+
+  }
+
+  button.disabled = true;
+
+  button.textContent =
+    "جاري النشر...";
+
+  try {
+
+    await SocialNet.api(
+      "/api/posts",
+      {
+        method: "POST",
+
+        body: JSON.stringify({
+          body,
+          imageUrl
+        })
+      }
+    );
+
+    bodyInput.value = "";
+    imageInput.value = "";
+
+    await loadPosts();
+
+  } catch (error) {
+
+    alert(
+      error.message
+    );
+
+  } finally {
+
+    button.disabled = false;
+
+    button.textContent =
+      "نشر";
+
+  }
+
+}
+
+
+async function toggleLike(
+  postId
+) {
+
+  try {
+
+    await SocialNet.api(
+      `/api/posts/${postId}/like`,
+      {
+        method: "POST"
+      }
+    );
+
+    await loadPosts();
+
+  } catch (error) {
+
+    alert(
+      error.message
+    );
+
+  }
+
+}
+
+
+async function sendComment(
+  postId
+) {
+
+  const input =
+    document.getElementById(
+      `comment-${postId}`
+    );
+
+  if (!input) return;
+
+  const body =
+    input.value.trim();
+
+  if (!body) return;
+
+  try {
+
+    await SocialNet.api(
+      `/api/posts/${postId}/comments`,
+      {
+        method: "POST",
+
+        body: JSON.stringify({
+          body
+        })
+      }
+    );
+
+    input.value = "";
+
+    await loadPosts();
+
+  } catch (error) {
+
+    alert(
+      error.message
+    );
+
+  }
+
+}
+
+
+// ==========================================
+// PROFILE
+// ==========================================
+
+async function initProfile() {
+
+  const user =
+    await setupUserHeader();
+
+  if (!user) return;
+
+  const name =
+    document.getElementById(
+      "profileName"
+    );
+
+  if (name) {
+
+    name.textContent =
+      user.name;
+
+  }
+
+}
+
+
+// ==========================================
+// FRIENDS
+// ==========================================
+
+async function initFriends() {
+
+  const user =
+    await setupUserHeader();
+
+  if (!user) return;
+
+  const list =
+    document.getElementById(
+      "friendsList"
+    );
+
+  if (!list) return;
+
+  try {
+
+    const data =
+      await SocialNet.api(
+        "/api/users"
+      );
+
+    if (
+      !data.users.length
+    ) {
+
+      list.innerHTML = `
+        <div class="empty">
+          لا يوجد مستخدمون آخرون حاليًا.
+        </div>
+      `;
+
+      return;
+
+    }
+
+    list.innerHTML =
+      data.users
+        .map(friend => `
+          <div class="user-row">
+
+            <div class="user-info-row">
+
+              <div class="avatar">
+                👤
+              </div>
+
+              <strong>
+                ${escapeHtml(
+                  friend.name
+                )}
+              </strong>
+
+            </div>
+
+            <a
+              href="messages.html?user=${friend.id}"
+              class="btn-primary small-button"
+            >
+              💬 مراسلة
+            </a>
+
+          </div>
+        `)
+        .join("");
+
+  } catch (error) {
+
+    list.innerHTML = `
+      <div class="error-box">
+        ${escapeHtml(
+          error.message
+        )}
+      </div>
+    `;
+
+  }
+
+}
+
+
+// ==========================================
+// MESSAGES
+// ==========================================
+
+let selectedMessageUser = null;
+
+
+async function initMessages() {
+
+  const currentUser =
+    await setupUserHeader();
+
+  if (!currentUser) return;
+
+  await loadMessageUsers();
+
+  const params =
+    new URLSearchParams(
+      location.search
+    );
+
+  const userId =
+    Number(
+      params.get("user")
+    );
+
+  if (
+    Number.isInteger(userId) &&
+    userId > 0
+  ) {
+
+    const userButtons =
+      document.querySelectorAll(
+        "[data-message-user]"
+      );
+
+    const found =
+      Array.from(
+        userButtons
+      ).find(
+        button =>
+          Number(
+            button.dataset.messageUser
+          ) === userId
+      );
+
+    if (found) {
+
+      openConversation(
+        userId,
+        found.dataset.userName
+      );
+
+    }
+
+  }
+
+}
+
+
+async function loadMessageUsers() {
+
+  const list =
+    document.getElementById(
+      "messageUsers"
+    );
+
+  if (!list) return;
+
+  try {
+
+    const data =
+      await SocialNet.api(
+        "/api/users"
+      );
+
+    if (
+      !data.users.length
+    ) {
+
+      list.innerHTML = `
+        <div class="empty">
+          لا يوجد مستخدمون آخرون.
+        </div>
+      `;
+
+      return;
+
+    }
+
+    list.innerHTML =
+      data.users
+        .map(user => `
+          <button
+            class="message-user"
+            data-message-user="${user.id}"
+            data-user-name="${escapeHtml(
+              user.name
+            )}"
+            onclick="openConversation(
+              ${user.id},
+              '${escapeJs(
+                user.name
+              )}'
+            )"
+          >
+            <span class="avatar">
+              👤
+            </span>
+
+            <span>
+              ${escapeHtml(
+                user.name
+              )}
+            </span>
+          </button>
+        `)
+        .join("");
+
+  } catch (error) {
+
+    list.innerHTML = `
+      <div class="error-box">
+        ${escapeHtml(
+          error.message
+        )}
+      </div>
+    `;
+
+  }
+
+}
+
+
+function escapeJs(value) {
+
+  return String(
+    value ?? ""
+  )
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r");
+
+}
+
+
+window.openConversation =
+  async function(
+    userId,
+    userName
+  ) {
+
+    selectedMessageUser = {
+      id: Number(userId),
+      name: userName
+    };
+
+    const title =
+      document.getElementById(
+        "conversationTitle"
+      );
+
+    if (title) {
+
+      title.textContent =
+        "💬 " + userName;
+
+    }
+
+    document
+      .querySelectorAll(
+        ".message-user"
+      )
+      .forEach(button => {
+
+        button.classList.toggle(
+          "selected",
+          Number(
+            button.dataset.messageUser
+          ) === Number(userId)
+        );
+
+      });
+
+    await loadConversation();
+
+  };
+
+
+async function loadConversation() {
+
+  const container =
+    document.getElementById(
+      "messagesContainer"
+    );
+
+  if (
+    !container ||
+    !selectedMessageUser
+  ) return;
+
+  try {
+
+    const data =
+      await SocialNet.api(
+        `/api/messages/${selectedMessageUser.id}`
+      );
+
+    if (
+      !data.messages.length
+    ) {
+
+      container.innerHTML = `
+        <div class="empty">
+          لا توجد رسائل بعد.
+          ابدأ المحادثة الآن.
+        </div>
+      `;
+
+      return;
+
+    }
+
+    const me =
+      SocialNet.getUser();
+
+    container.innerHTML =
+      data.messages
+        .map(message => {
+
+          const mine =
+            Number(
+              message.sender_id
+            ) === Number(me.id);
+
+          return `
+            <div
+              class="message ${
+                mine
+                  ? "message-me"
+                  : "message-other"
+              }"
+            >
+
+              <div class="message-author">
+                ${escapeHtml(
+                  message.sender
+                )}
+              </div>
+
+              <div class="message-body">
+                ${escapeHtml(
+                  message.body
+                )}
+              </div>
+
+              <div class="message-date">
+                ${formatDate(
+                  message.created_at
+                )}
+              </div>
+
+            </div>
+          `;
+
+        })
+        .join("");
+
+    container.scrollTop =
+      container.scrollHeight;
+
+  } catch (error) {
+
+    container.innerHTML = `
+      <div class="error-box">
+        ${escapeHtml(
+          error.message
+        )}
+      </div>
+    `;
+
+  }
+
+}
+
+
+async function sendMessage() {
+
+  if (
+    !selectedMessageUser
+  ) {
+
+    alert(
+      "اختر شخصًا أولاً."
+    );
+
+    return;
+
+  }
+
+  const input =
+    document.getElementById(
+      "messageInput"
+    );
+
+  const button =
+    document.getElementById(
+      "sendMessageButton"
+    );
+
+  const body =
+    input.value.trim();
+
+  if (!body) return;
+
+  button.disabled = true;
+
+  try {
+
+    await SocialNet.api(
+      `/api/messages/${selectedMessageUser.id}`,
+      {
+        method: "POST",
+
+        body: JSON.stringify({
+          body
+        })
+      }
+    );
+
+    input.value = "";
+
+    await loadConversation();
+
+  } catch (error) {
+
+    alert(
+      error.message
+    );
+
+  } finally {
+
+    button.disabled = false;
+
+  }
+
+}
+
+
+// ==========================================
+// Auto initialization
+// ==========================================
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+
+    const page =
+      document.body.dataset.page;
+
+    if (
+      page === "home"
+    ) {
+
+      initHome();
+
+    } else if (
+      page === "profile"
+    ) {
+
+      initProfile();
+
+    } else if (
+      page === "friends"
+    ) {
+
+      initFriends();
+
+    } else if (
+      page === "messages"
+    ) {
+
+      initMessages();
+
+    }
+
+  }
+);
