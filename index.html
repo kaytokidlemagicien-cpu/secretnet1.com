@@ -1,10 +1,380 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الرئيسية - SocialNet</title><link rel="stylesheet" href="/style.css"></head><body>
-<header class="topbar"><a class="brand" href="/index.html"><span class="brand-icon">SN</span><span>SocialNet</span></a><div class="header-actions"><div class="current-user"><span id="topName">...</span><span class="mini-avatar">👤</span></div><button id="logoutButton" class="logout-button">خروج</button></div></header>
-<main class="page"><div class="grid"><aside class="side"><div class="side-card"><div class="profile-mini"><div class="profile-mini-row"><span class="avatar">👤</span><div><strong id="sideName">...</strong><small>حسابك على SocialNet</small></div></div></div><nav class="nav">
-<a class="active" href="/index.html">🏠 الرئيسية</a><a class="" href="/profile.html">👤 ملفي</a><a class="" href="/friends.html">🤝 الأصدقاء</a><a class="" href="/messages.html">💬 الرسائل</a>
-</nav></div></aside><section>
-<div class="feed-title"><h1>الرئيسية</h1><button id="refresh" class="btn btn-soft btn-small">↻ تحديث</button></div>
-<div class="card composer"><div class="composer-top"><span class="avatar">👤</span><div><strong id="composerName">...</strong><small>شارك شيئًا مع مجتمعك</small></div></div><textarea id="postBody" maxlength="5000" placeholder="بماذا تفكر؟"></textarea><input id="postImage" class="composer-url" type="url" maxlength="2000" placeholder="رابط صورة (اختياري)"><div class="composer-bottom"><span class="attach-hint">يمكنك نشر نص أو صورة عبر رابط.</span><button id="publish" class="btn btn-primary">نشر المنشور</button></div></div>
-<div class="feed-title"><h1>آخر المنشورات</h1></div><div id="feed"><div class="card loading">جاري تحميل المنشورات...</div></div>
-<div class="card danger-zone"><h3>إدارة منشوراتي</h3><p>حذف جميع منشوراتك نهائيًا من قاعدة البيانات.</p><button id="clearMine" class="btn btn-danger">حذف جميع منشوراتي</button></div>
-</section><aside class="side right-side"><div class="card right-widget"><h3 class="widget-title">✨ SocialNet</h3><p class="muted">مكان بسيط لمشاركة أفكارك والتواصل مع الآخرين.</p></div><div class="card right-widget"><h3 class="widget-title">🔒 الخصوصية</h3><p class="muted">جلسة تسجيل الدخول محفوظة لهذا التبويب فقط.</p></div></aside></div></main><script src="/app.js"></script><script src="/common.js"></script><script src="/index.js"></script></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+    <title>الرئيسية - SocialNet</title>
+
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+<header class="topbar">
+
+    <a class="brand" href="/index.html">
+        <span class="brand-icon">SN</span>
+        <span>SocialNet</span>
+    </a>
+
+    <div class="header-actions">
+
+        <a href="/profile.html" class="current-user">
+            <img
+                id="topAvatar"
+                class="mini-avatar"
+                src=""
+                alt="الصورة الشخصية"
+                hidden
+            >
+
+            <span
+                id="topAvatarFallback"
+                class="mini-avatar"
+            >👤</span>
+
+            <span id="topName">...</span>
+        </a>
+
+        <button
+            id="logoutButton"
+            class="logout-button"
+            type="button"
+        >
+            خروج
+        </button>
+
+    </div>
+
+</header>
+
+
+<main class="page">
+
+    <div class="grid">
+
+        <!-- القائمة الجانبية -->
+
+        <aside class="side">
+
+            <div class="side-card">
+
+                <div class="profile-mini">
+
+                    <a
+                        href="/profile.html"
+                        class="profile-mini-row"
+                    >
+
+                        <img
+                            id="sideAvatar"
+                            class="avatar"
+                            src=""
+                            alt="الصورة الشخصية"
+                            hidden
+                        >
+
+                        <span
+                            id="sideAvatarFallback"
+                            class="avatar"
+                        >👤</span>
+
+                        <div>
+
+                            <strong id="sideName">
+                                ...
+                            </strong>
+
+                            <small>
+                                حسابك على SocialNet
+                            </small>
+
+                        </div>
+
+                    </a>
+
+                </div>
+
+
+                <nav class="nav">
+
+                    <a
+                        class="active"
+                        href="/index.html"
+                    >
+                        🏠 الرئيسية
+                    </a>
+
+                    <a
+                        href="/profile.html"
+                    >
+                        👤 ملفي
+                    </a>
+
+                    <a
+                        href="/friends.html"
+                    >
+                        🤝 الأصدقاء
+                    </a>
+
+                    <a
+                        href="/messages.html"
+                    >
+                        💬 الرسائل
+                    </a>
+
+                </nav>
+
+            </div>
+
+        </aside>
+
+
+        <!-- المحتوى الرئيسي -->
+
+        <section>
+
+            <div class="feed-title">
+
+                <h1>
+                    الرئيسية
+                </h1>
+
+                <button
+                    id="refresh"
+                    class="btn btn-soft btn-small"
+                    type="button"
+                >
+                    ↻ تحديث
+                </button>
+
+            </div>
+
+
+            <!-- إنشاء منشور -->
+
+            <div class="card composer">
+
+                <div class="composer-top">
+
+                    <img
+                        id="composerAvatar"
+                        class="avatar"
+                        src=""
+                        alt="الصورة الشخصية"
+                        hidden
+                    >
+
+                    <span
+                        id="composerAvatarFallback"
+                        class="avatar"
+                    >👤</span>
+
+                    <div>
+
+                        <strong id="composerName">
+                            ...
+                        </strong>
+
+                        <small>
+                            شارك شيئًا مع مجتمعك
+                        </small>
+
+                    </div>
+
+                </div>
+
+
+                <textarea
+                    id="postBody"
+                    maxlength="5000"
+                    placeholder="بماذا تفكر؟"
+                ></textarea>
+
+
+                <!-- اختيار صورة من الجهاز -->
+
+                <input
+                    id="postImageFile"
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    hidden
+                >
+
+
+                <div class="composer-bottom">
+
+                    <div class="composer-tools">
+
+                        <button
+                            id="choosePostImage"
+                            class="btn btn-soft"
+                            type="button"
+                        >
+                            📷 إضافة صورة
+                        </button>
+
+                        <span
+                            id="selectedImageName"
+                            class="attach-hint"
+                        >
+                            لم يتم اختيار صورة
+                        </span>
+
+                    </div>
+
+                    <button
+                        id="publish"
+                        class="btn btn-primary"
+                        type="button"
+                    >
+                        نشر المنشور
+                    </button>
+
+                </div>
+
+
+                <!-- معاينة الصورة -->
+
+                <div
+                    id="postImagePreviewBox"
+                    class="image-preview-box"
+                    hidden
+                >
+
+                    <div class="image-preview-header">
+
+                        <strong>
+                            معاينة الصورة
+                        </strong>
+
+                        <button
+                            id="removePostImage"
+                            type="button"
+                            class="preview-remove"
+                        >
+                            ✕
+                        </button>
+
+                    </div>
+
+                    <img
+                        id="postImagePreview"
+                        class="post-image-preview"
+                        src=""
+                        alt="معاينة الصورة"
+                    >
+
+                </div>
+
+
+                <div
+                    id="uploadStatus"
+                    class="upload-status"
+                ></div>
+
+            </div>
+
+
+            <!-- المنشورات -->
+
+            <div class="feed-title">
+
+                <h1>
+                    آخر المنشورات
+                </h1>
+
+            </div>
+
+
+            <div id="feed">
+
+                <div class="card loading">
+                    جاري تحميل المنشورات...
+                </div>
+
+            </div>
+
+
+            <!-- إدارة المنشورات -->
+
+            <div class="card danger-zone">
+
+                <h3>
+                    إدارة منشوراتي
+                </h3>
+
+                <p>
+                    حذف جميع منشوراتك نهائيًا من قاعدة البيانات.
+                </p>
+
+                <button
+                    id="clearMine"
+                    class="btn btn-danger"
+                    type="button"
+                >
+                    حذف جميع منشوراتي
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- الجانب الأيمن -->
+
+        <aside class="side right-side">
+
+            <div class="card right-widget">
+
+                <h3 class="widget-title">
+                    ✨ SocialNet
+                </h3>
+
+                <p class="muted">
+                    مكان بسيط لمشاركة أفكارك والتواصل مع الآخرين.
+                </p>
+
+            </div>
+
+
+            <div class="card right-widget">
+
+                <h3 class="widget-title">
+                    📷 الصور
+                </h3>
+
+                <p class="muted">
+                    يمكنك الآن اختيار الصور مباشرة من هاتفك أو جهاز الكمبيوتر ونشرها على حسابك.
+                </p>
+
+            </div>
+
+
+            <div class="card right-widget">
+
+                <h3 class="widget-title">
+                    🔒 الخصوصية
+                </h3>
+
+                <p class="muted">
+                    جلسة تسجيل الدخول محفوظة لهذا التبويب فقط.
+                </p>
+
+            </div>
+
+        </aside>
+
+    </div>
+
+</main>
+
+
+<script src="/app.js"></script>
+<script src="/common.js"></script>
+<script src="/index.js"></script>
+
+</body>
+</html>
