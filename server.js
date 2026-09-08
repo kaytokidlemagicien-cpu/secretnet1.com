@@ -2,20 +2,58 @@ const express = require("express");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const crypto = require("crypto");
+const path = require("path");
 const { Pool } = require("pg");
 
 const app = express();
+
 const port = Number(process.env.PORT || 3000);
 
 const SITE_PASSWORD = process.env.SITE_PASSWORD || "Boss2026";
-const COOKIE_SECRET = process.env.COOKIE_SECRET || "CHANGE_THIS_SECRET";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("localhost")
-    ? { rejectUnauthorized: false }
-    : false
+  ssl:
+    process.env.DATABASE_URL &&
+    !process.env.DATABASE_URL.includes("localhost")
+      ? { rejectUnauthorized: false }
+      : false
 });
+
+/* =========================
+   إعدادات أساسية
+========================= */
+
+app.set("trust proxy", 1);
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: {
+      policy: "cross-origin"
+    }
+  })
+);
+
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+/* =========================
+   قاعدة البيانات
+========================= */
 
 async function initDb() {
   try {
@@ -25,19 +63,22 @@ async function initDb() {
         name TEXT NOT NULL UNIQUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
       CREATE TABLE IF NOT EXISTS posts (
         id BIGSERIAL PRIMARY KEY,
         author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         body TEXT NOT NULL DEFAULT '',
-        file_url TEXT,
+        image_url TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
-      CREATE TABLE IF NOT EXISTS likes (
-        id BIGSERIAL PRIMARY KEY,
+
+      CREATE TABLE IF NOT EXISTS post_likes (
         post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE(post_id, user_id)
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (post_id, user_id)
       );
+
       CREATE TABLE IF NOT EXISTS comments (
         id BIGSERIAL PRIMARY KEY,
         post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
@@ -45,176 +86,783 @@ async function initDb() {
         body TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id BIGSERIAL PRIMARY KEY,
+        sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        receiver_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS posts_created_idx
+      ON posts(created_at DESC);
+
+      CREATE INDEX IF NOT EXISTS comments_post_idx
+      ON comments(post_id, created_at);
+
+      CREATE INDEX IF NOT EXISTS messages_pair_idx
+      ON messages(sender_id, receiver_id, created_at);
+
+      CREATE INDEX IF NOT EXISTS sessions_user_idx
+      ON sessions(user_id);
+
+      CREATE INDEX IF NOT EXISTS sessions_expires_idx
+      ON sessions(expires_at);
     `);
+
     console.log("DB Ready");
-  } catch (err) {
-    console.error("DB Error:", err);
+  } catch (error) {
+    console.error("DB initialization error:", error);
   }
 }
+
 initDb();
 
-app.set("trust proxy", 1);
-app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(__dirname));
+/* =========================
+   أدوات الجلسات
+========================= */
 
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30 });
-const writeLimiter = rateLimit({ windowMs: 60 * 1000, limit: 120 });
-
-function sign(value) {
-  return crypto.createHmac("sha256", COOKIE_SECRET).update(value).digest("base64url");
+function createToken() {
+  return crypto.randomBytes(32).toString("base64url");
 }
 
-function setAuthCookie(res, userId) {
-  const value = String(userId);
-  res.cookie("sn_auth", `${value}.${sign(value)}`, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/"
-  });
+function getToken(req) {
+  const auth = req.headers.authorization || "";
+
+  if (!auth.startsWith("Bearer ")) {
+    return null;
+  }
+
+  return auth.slice(7).trim() || null;
 }
 
-function getUserId(req) {
-  const raw = req.headers.cookie || "";
-  const match = raw.match(/(?:^|;\s*)sn_auth=([^;]+)/);
-  if (!match) return null;
-  const decoded = decodeURIComponent(match[1]);
-  const dot = decoded.lastIndexOf(".");
-  if (dot < 1) return null;
-  const id = decoded.slice(0, dot);
-  const sig = decoded.slice(dot + 1);
-  const expected = sign(id);
-  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-  return /^\d+$/.test(id) ? Number(id) : null;
+async function getSessionUser(req) {
+  const token = getToken(req);
+
+  if (!token) {
+    return null;
+  }
+
+  const { rows } = await pool.query(
+    `
+    SELECT
+      s.token,
+      s.user_id,
+      s.expires_at,
+      u.id,
+      u.name
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.token = $1
+      AND s.expires_at > NOW()
+    `,
+    [token]
+  );
+
+  if (!rows[0]) {
+    return null;
+  }
+
+  return {
+    id: rows[0].id,
+    name: rows[0].name,
+    token
+  };
 }
 
 async function requireAuth(req, res, next) {
-  const userId = getUserId(req);
-  if (!userId) return res.status(401).json({ error: "يجب تسجيل الدخول أولاً." });
   try {
-    const { rows } = await pool.query("SELECT id, name FROM users WHERE id=$1", [userId]);
-    if (!rows[0]) return res.status(401).json({ error: "انتهت الجلسة." });
-    req.user = rows[0];
+    const user = await getSessionUser(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "يجب تسجيل الدخول أولاً."
+      });
+    }
+
+    req.user = user;
+
     next();
-  } catch (e) { next(e); }
+  } catch (error) {
+    next(error);
+  }
 }
 
-// مسح الجلسة وتوجيه المستخدم لصفحة الدخول فور فتح الصفحة الرئيسية /
+/* =========================
+   تنظيف الجلسات القديمة
+========================= */
+
+async function cleanupSessions() {
+  try {
+    await pool.query(`
+      DELETE FROM sessions
+      WHERE expires_at <= NOW()
+    `);
+  } catch (error) {
+    console.error("Session cleanup error:", error);
+  }
+}
+
+setInterval(cleanupSessions, 60 * 60 * 1000);
+
+/* =========================
+   الصفحة الرئيسية
+========================= */
+
 app.get("/", (req, res) => {
-  res.clearCookie("sn_auth", { path: "/" });
   res.redirect("/login.html");
 });
 
+/* =========================
+   تسجيل الدخول
+========================= */
+
 app.post("/api/enter", authLimiter, async (req, res, next) => {
   try {
-    const { password, name } = req.body || {};
-    if (password !== SITE_PASSWORD) return res.status(401).json({ error: "كلمة المرور غير صحيحة." });
-    const clean = String(name || "").trim().replace(/\s+/g, " ");
-    if (clean.length < 2 || clean.length > 30) return res.status(400).json({ error: "الاسم يجب أن يكون بين حرفين و30 حرفًا." });
+    const password = String(req.body?.password || "");
+    const name = String(req.body?.name || "")
+      .trim()
+      .replace(/\s+/g, " ");
 
-    // ربط الحساب بالاسم المسجل سابقاً في قاعدة البيانات للحفاظ على البروفايل والرسائل والمنشورات القديمة
-    const { rows } = await pool.query(
-      `INSERT INTO users(name) VALUES($1) ON CONFLICT(name) DO UPDATE SET name=EXCLUDED.name RETURNING id,name`,
-      [clean]
-    );
-    setAuthCookie(res, rows[0].id);
-    res.json({ user: rows[0] });
-  } catch (e) { next(e); }
-});
-
-app.post("/api/logout", (req, res) => {
-  res.clearCookie("sn_auth", { path: "/" });
-  res.json({ ok: true });
-});
-
-app.get("/api/me", async (req, res, next) => {
-  try {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ error: "غير مسجل." });
-    const { rows } = await pool.query("SELECT id,name FROM users WHERE id=$1", [userId]);
-    if (!rows[0]) return res.status(401).json({ error: "غير مسجل." });
-    res.json({ user: rows[0] });
-  } catch (e) { next(e); }
-});
-
-app.get("/api/posts", requireAuth, async (req, res, next) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT p.id, p.body, p.file_url, p.created_at, u.name AS author,
-             COUNT(DISTINCT l.id)::int AS likes_count
-      FROM posts p
-      JOIN users u ON u.id=p.author_id
-      LEFT JOIN likes l ON l.post_id=p.id
-      GROUP BY p.id, u.name
-      ORDER BY p.created_at DESC LIMIT 100
-    `);
-
-    const ids = rows.map(x => x.id);
-    let comments = [];
-    if (ids.length) {
-      const result = await pool.query(`
-        SELECT c.id, c.post_id, c.body, c.created_at, u.name AS author
-        FROM comments c JOIN users u ON u.id=c.author_id
-        WHERE c.post_id = ANY($1::bigint[])
-        ORDER BY c.created_at ASC
-      `, [ids]);
-      comments = result.rows;
-    }
-    const byPost = {};
-    for (const c of comments) (byPost[c.post_id] ||= []).push(c);
-    res.json({ posts: rows.map(p => ({ ...p, comments: byPost[p.id] || [] })) });
-  } catch (e) { next(e); }
-});
-
-app.post("/api/posts", writeLimiter, requireAuth, async (req, res, next) => {
-  try {
-    const body = String(req.body?.body || "").trim();
-    const imageUrl = String(req.body?.imageUrl || req.body?.file_url || "").trim();
-
-    if (!body && !imageUrl) {
-      return res.status(400).json({ error: "يرجى كتابة نص أو وضع رابط صورة." });
+    if (password !== SITE_PASSWORD) {
+      return res.status(401).json({
+        error: "كلمة المرور غير صحيحة."
+      });
     }
 
-    const { rows } = await pool.query(
-      "INSERT INTO posts(author_id, body, file_url) VALUES($1, $2, $3) RETURNING id, created_at",
-      [req.user.id, body, imageUrl || null]
+    if (name.length < 2 || name.length > 30) {
+      return res.status(400).json({
+        error: "الاسم يجب أن يكون بين حرفين و30 حرفًا."
+      });
+    }
+
+    /*
+      إذا كان الاسم موجودًا:
+      نستعمل نفس المستخدم.
+      وبالتالي تبقى منشوراته ورسائله وتعليقاته محفوظة.
+    */
+
+    const result = await pool.query(
+      `
+      INSERT INTO users(name)
+      VALUES($1)
+      ON CONFLICT(name)
+      DO UPDATE SET name = EXCLUDED.name
+      RETURNING id, name
+      `,
+      [name]
     );
-    res.json({ ok: true, id: rows[0].id });
-  } catch (e) { 
-    console.error("Error creating post in DB:", e);
-    next(e); 
+
+    const user = result.rows[0];
+
+    /*
+      جلسة خاصة بهذا التبويب.
+      يتم إرسال الـToken إلى sessionStorage في المتصفح.
+    */
+
+    const token = createToken();
+
+    await pool.query(
+      `
+      INSERT INTO sessions(
+        token,
+        user_id,
+        expires_at
+      )
+      VALUES(
+        $1,
+        $2,
+        NOW() + INTERVAL '30 days'
+      )
+      `,
+      [token, user.id]
+    );
+
+    res.json({
+      ok: true,
+      token,
+      user
+    });
+  } catch (error) {
+    next(error);
   }
 });
 
-app.post("/api/posts/:id/like", writeLimiter, requireAuth, async (req, res, next) => {
+/* =========================
+   تسجيل الخروج
+========================= */
+
+app.post("/api/logout", async (req, res, next) => {
   try {
-    const postId = Number(req.params.id);
-    await pool.query(
-      "INSERT INTO likes(post_id, user_id) VALUES($1, $2) ON CONFLICT DO NOTHING",
-      [postId, req.user.id]
-    );
-    res.json({ ok: true });
-  } catch (e) { next(e); }
+    const token = getToken(req);
+
+    if (token) {
+      await pool.query(
+        `
+        DELETE FROM sessions
+        WHERE token = $1
+        `,
+        [token]
+      );
+    }
+
+    res.json({
+      ok: true
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.post("/api/posts/:id/comments", writeLimiter, requireAuth, async (req, res, next) => {
+/* =========================
+   المستخدم الحالي
+========================= */
+
+app.get("/api/me", async (req, res, next) => {
   try {
-    const body = String(req.body?.body || "").trim();
-    if (!body) return res.status(400).json({ error: "التعليق فارغ." });
-    
-    await pool.query(
-      "INSERT INTO comments(post_id, author_id, body) VALUES($1, $2, $3)",
-      [Number(req.params.id), req.user.id, body]
-    );
-    res.json({ ok: true });
-  } catch (e) { next(e); }
+    const user = await getSessionUser(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "غير مسجل."
+      });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
+
+/* =========================
+   المستخدمون
+========================= */
+
+app.get("/api/users", requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `
+      SELECT id, name, created_at
+      FROM users
+      WHERE id <> $1
+      ORDER BY name ASC
+      `,
+      [req.user.id]
+    );
+
+    res.json({
+      users: rows
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* =========================
+   المنشورات
+========================= */
+
+app.get("/api/posts", requireAuth, async (req, res, next) => {
+  try {
+    const { rows: posts } = await pool.query(
+      `
+      SELECT
+        p.id,
+        p.body,
+        p.image_url,
+        p.created_at,
+        u.name AS author,
+
+        COUNT(DISTINCT pl.user_id)::int AS likes_count,
+
+        EXISTS(
+          SELECT 1
+          FROM post_likes my_like
+          WHERE my_like.post_id = p.id
+            AND my_like.user_id = $1
+        ) AS liked
+
+      FROM posts p
+
+      JOIN users u
+        ON u.id = p.author_id
+
+      LEFT JOIN post_likes pl
+        ON pl.post_id = p.id
+
+      GROUP BY
+        p.id,
+        u.name
+
+      ORDER BY
+        p.created_at DESC
+
+      LIMIT 100
+      `,
+      [req.user.id]
+    );
+
+    const postIds = posts.map(post => post.id);
+
+    let comments = [];
+
+    if (postIds.length > 0) {
+      const result = await pool.query(
+        `
+        SELECT
+          c.id,
+          c.post_id,
+          c.body,
+          c.created_at,
+          u.name AS author
+
+        FROM comments c
+
+        JOIN users u
+          ON u.id = c.author_id
+
+        WHERE c.post_id = ANY($1::bigint[])
+
+        ORDER BY c.created_at ASC
+        `,
+        [postIds]
+      );
+
+      comments = result.rows;
+    }
+
+    const commentsByPost = {};
+
+    for (const comment of comments) {
+      if (!commentsByPost[comment.post_id]) {
+        commentsByPost[comment.post_id] = [];
+      }
+
+      commentsByPost[comment.post_id].push(comment);
+    }
+
+    res.json({
+      posts: posts.map(post => ({
+        ...post,
+        comments: commentsByPost[post.id] || []
+      }))
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* =========================
+   إنشاء منشور
+========================= */
+
+app.post(
+  "/api/posts",
+  writeLimiter,
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const body = String(req.body?.body || "").trim();
+
+      const imageUrl = String(
+        req.body?.imageUrl ||
+          req.body?.image_url ||
+          req.body?.file_url ||
+          ""
+      ).trim();
+
+      if (!body && !imageUrl) {
+        return res.status(400).json({
+          error: "يرجى كتابة نص أو وضع رابط صورة."
+        });
+      }
+
+      if (body.length > 5000) {
+        return res.status(400).json({
+          error: "المنشور طويل جدًا."
+        });
+      }
+
+      if (imageUrl.length > 2000) {
+        return res.status(400).json({
+          error: "رابط الصورة طويل جدًا."
+        });
+      }
+
+      const { rows } = await pool.query(
+        `
+        INSERT INTO posts(
+          author_id,
+          body,
+          image_url
+        )
+        VALUES(
+          $1,
+          $2,
+          $3
+        )
+        RETURNING id, created_at
+        `,
+        [
+          req.user.id,
+          body,
+          imageUrl || null
+        ]
+      );
+
+      res.json({
+        ok: true,
+        id: rows[0].id,
+        created_at: rows[0].created_at
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/* =========================
+   إعجاب
+========================= */
+
+app.post(
+  "/api/posts/:id/like",
+  writeLimiter,
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const postId = Number(req.params.id);
+
+      if (!Number.isInteger(postId)) {
+        return res.status(400).json({
+          error: "منشور غير صالح."
+        });
+      }
+
+      const existing = await pool.query(
+        `
+        SELECT 1
+        FROM post_likes
+        WHERE post_id = $1
+          AND user_id = $2
+        `,
+        [postId, req.user.id]
+      );
+
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `
+          DELETE FROM post_likes
+          WHERE post_id = $1
+            AND user_id = $2
+          `,
+          [postId, req.user.id]
+        );
+
+        return res.json({
+          ok: true,
+          liked: false
+        });
+      }
+
+      await pool.query(
+        `
+        INSERT INTO post_likes(
+          post_id,
+          user_id
+        )
+        VALUES(
+          $1,
+          $2
+        )
+        ON CONFLICT DO NOTHING
+        `,
+        [postId, req.user.id]
+      );
+
+      res.json({
+        ok: true,
+        liked: true
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/* =========================
+   التعليقات
+========================= */
+
+app.post(
+  "/api/posts/:id/comments",
+  writeLimiter,
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const postId = Number(req.params.id);
+
+      const body = String(
+        req.body?.body || ""
+      ).trim();
+
+      if (!Number.isInteger(postId)) {
+        return res.status(400).json({
+          error: "منشور غير صالح."
+        });
+      }
+
+      if (!body) {
+        return res.status(400).json({
+          error: "التعليق فارغ."
+        });
+      }
+
+      if (body.length > 1000) {
+        return res.status(400).json({
+          error: "التعليق طويل جدًا."
+        });
+      }
+
+      await pool.query(
+        `
+        INSERT INTO comments(
+          post_id,
+          author_id,
+          body
+        )
+        VALUES(
+          $1,
+          $2,
+          $3
+        )
+        `,
+        [
+          postId,
+          req.user.id,
+          body
+        ]
+      );
+
+      res.json({
+        ok: true
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/* =========================
+   حذف منشورات المستخدم
+========================= */
+
+app.delete(
+  "/api/my-posts",
+  writeLimiter,
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      await pool.query(
+        `
+        DELETE FROM posts
+        WHERE author_id = $1
+        `,
+        [req.user.id]
+      );
+
+      res.json({
+        ok: true
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/* =========================
+   الرسائل
+========================= */
+
+app.get(
+  "/api/messages/:userId",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const otherUserId = Number(req.params.userId);
+
+      if (
+        !Number.isInteger(otherUserId) ||
+        otherUserId === req.user.id
+      ) {
+        return res.status(400).json({
+          error: "مستخدم غير صالح."
+        });
+      }
+
+      const { rows } = await pool.query(
+        `
+        SELECT
+          m.id,
+          m.sender_id,
+          m.receiver_id,
+          m.body,
+          m.created_at,
+          sender.name AS sender,
+          receiver.name AS receiver
+
+        FROM messages m
+
+        JOIN users sender
+          ON sender.id = m.sender_id
+
+        JOIN users receiver
+          ON receiver.id = m.receiver_id
+
+        WHERE
+          (
+            m.sender_id = $1
+            AND m.receiver_id = $2
+          )
+          OR
+          (
+            m.sender_id = $2
+            AND m.receiver_id = $1
+          )
+
+        ORDER BY m.created_at ASC
+        `,
+        [
+          req.user.id,
+          otherUserId
+        ]
+      );
+
+      res.json({
+        messages: rows
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.post(
+  "/api/messages/:userId",
+  writeLimiter,
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const receiverId = Number(req.params.userId);
+
+      const body = String(
+        req.body?.body || ""
+      ).trim();
+
+      if (
+        !Number.isInteger(receiverId) ||
+        receiverId === req.user.id
+      ) {
+        return res.status(400).json({
+          error: "مستخدم غير صالح."
+        });
+      }
+
+      if (!body) {
+        return res.status(400).json({
+          error: "الرسالة فارغة."
+        });
+      }
+
+      if (body.length > 2000) {
+        return res.status(400).json({
+          error: "الرسالة طويلة جدًا."
+        });
+      }
+
+      const receiver = await pool.query(
+        `
+        SELECT id
+        FROM users
+        WHERE id = $1
+        `,
+        [receiverId]
+      );
+
+      if (!receiver.rows[0]) {
+        return res.status(404).json({
+          error: "المستخدم غير موجود."
+        });
+      }
+
+      const { rows } = await pool.query(
+        `
+        INSERT INTO messages(
+          sender_id,
+          receiver_id,
+          body
+        )
+        VALUES(
+          $1,
+          $2,
+          $3
+        )
+        RETURNING
+          id,
+          created_at
+        `,
+        [
+          req.user.id,
+          receiverId,
+          body
+        ]
+      );
+
+      res.json({
+        ok: true,
+        message: rows[0]
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/* =========================
+   معالجة الأخطاء
+========================= */
 
 app.use((err, req, res, next) => {
   console.error("Unhandled Error:", err);
-  res.status(500).json({ error: "حدث خطأ في الخادم." });
+
+  res.status(500).json({
+    error: "حدث خطأ في الخادم."
+  });
 });
 
-app.listen(port, () => console.log(`Server running on port ${port}`));
+/* =========================
+   الملفات الثابتة
+========================= */
+
+app.use(express.static(__dirname));
+
+/* =========================
+   تشغيل الخادم
+========================= */
+
+app.listen(port, () => {
+  console.log(`SocialNet running on port ${port}`);
+});
