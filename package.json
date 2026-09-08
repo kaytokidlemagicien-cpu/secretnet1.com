@@ -1,7 +1,7 @@
 {
   "name": "socialnet",
-  "version": "1.0.0",
-  "description": "SocialNet Application",
+  "version": "2.0.0",
+  "description": "SocialNet - شبكة اجتماعية متعددة الأجهزة والتبويبات",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
