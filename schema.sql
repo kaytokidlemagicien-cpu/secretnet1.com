@@ -35,6 +35,24 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS posts_created_idx ON posts(created_at DESC);
-CREATE INDEX IF NOT EXISTS comments_post_idx ON comments(post_id, created_at);
-CREATE INDEX IF NOT EXISTS messages_pair_idx ON messages(sender_id, receiver_id, created_at);
+CREATE INDEX IF NOT EXISTS posts_created_idx
+ON posts(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS comments_post_idx
+ON comments(post_id, created_at);
+
+CREATE INDEX IF NOT EXISTS messages_pair_idx
+ON messages(sender_id, receiver_id, created_at);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS sessions_user_idx
+ON sessions(user_id);
+
+CREATE INDEX IF NOT EXISTS sessions_expires_idx
+ON sessions(expires_at);
