@@ -25,6 +25,7 @@
 
     .btn-primary { width: 100%; background: #4f46e5; color: white; border: none; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: bold; cursor: pointer; }
     .btn-primary:hover { background: #4338ca; }
+    .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; }
 
     .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .post-author-box { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 15px; }
@@ -66,7 +67,7 @@
     <div class="card">
       <textarea id="postBody" placeholder="بماذا تفكر؟"></textarea>
       <input type="text" id="postImage" placeholder="رابط صورة (اختياري)">
-      <button onclick="createPost()" class="btn-primary" id="btnSubmit">نشر</button>
+      <button onclick="createPost(event)" class="btn-primary" id="btnSubmit">نشر</button>
     </div>
 
     <div id="postsFeed"></div>
@@ -136,22 +137,45 @@
       });
     }
 
-    async function createPost() {
-      const body = document.getElementById('postBody').value;
-      const imageUrl = document.getElementById('postImage').value;
+    async function createPost(event) {
+      if (event) event.preventDefault();
 
-      if (!body.trim() && !imageUrl.trim()) return;
+      const bodyInput = document.getElementById('postBody');
+      const imageInput = document.getElementById('postImage');
+      const btnSubmit = document.getElementById('btnSubmit');
 
-      const res = await fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body, imageUrl })
-      });
+      const body = bodyInput.value.trim();
+      const imageUrl = imageInput.value.trim();
 
-      if (res.ok) {
-        document.getElementById('postBody').value = '';
-        document.getElementById('postImage').value = '';
-        await loadPosts();
+      if (!body && !imageUrl) {
+        alert("يرجى كتابة نص أو وضع رابط صورة قبل النشر.");
+        return;
+      }
+
+      btnSubmit.disabled = true;
+      btnSubmit.innerText = "جاري النشر...";
+
+      try {
+        const res = await fetch('/api/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body, imageUrl })
+        });
+
+        if (res.ok) {
+          bodyInput.value = '';
+          imageInput.value = '';
+          await loadPosts();
+        } else {
+          const errData = await res.json();
+          alert(errData.error || "حدث خطأ أثناء النشر.");
+        }
+      } catch (err) {
+        console.error("Error creating post:", err);
+        alert("تعذر الاتصال بالخادم.");
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = "نشر";
       }
     }
 
