@@ -105,6 +105,17 @@ const SITE_PASSWORD =
     process.env.SITE_PASSWORD ||
     "Boss2026";
 
+// Nom exact du compte qui possède les droits Admin.
+// À définir dans Render : ADMIN_NAME=VotreNom
+const ADMIN_NAME = String(process.env.ADMIN_NAME || "").trim();
+
+// Optionnel : adresse(s) IP autorisée(s) pour le panneau Admin.
+// Exemple : ADMIN_IPS=1.2.3.4,5.6.7.8
+const ADMIN_IPS = String(process.env.ADMIN_IPS || "")
+    .split(",")
+    .map(v => v.trim())
+    .filter(Boolean);
+
 const DATABASE_URL =
     process.env.DATABASE_URL;
 
@@ -440,6 +451,9 @@ async function initDb() {
         await pool.query(`
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE;
         `);
 
 
@@ -861,7 +875,8 @@ async function requireAuth(
                     s.user_id,
                     u.name,
                     u.avatar_url,
-                    u.created_at
+                    u.created_at,
+                    u.is_banned
 
                 FROM sessions s
 
@@ -895,6 +910,10 @@ async function requireAuth(
         }
 
 
+        if (result.rows[0].is_banned) {
+            return res.status(403).json({ error: "Ce compte est bloqué." });
+        }
+
         req.user = {
 
             id:
@@ -907,7 +926,10 @@ async function requireAuth(
                 result.rows[0].avatar_url,
 
             created_at:
-                result.rows[0].created_at
+                result.rows[0].created_at,
+
+            is_banned:
+                result.rows[0].is_banned
 
         };
 
@@ -922,6 +944,128 @@ async function requireAuth(
 
 }
 
+
+
+/* =========================================================
+   ADMIN — لوحة تحكم خاصة بالحساب المحدد
+========================================================= */
+
+function isAdminUser(req) {
+    if (!ADMIN_NAME) return false;
+    return String(req.user?.name || "").trim() === ADMIN_NAME;
+}
+
+function adminIpAllowed(req) {
+    if (!ADMIN_IPS.length) return true;
+    const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    const ip = forwarded || String(req.ip || "").replace(/^::ffff:/, "");
+    return ADMIN_IPS.includes(ip);
+}
+
+function requireAdmin(req, res, next) {
+    if (!isAdminUser(req)) {
+        return res.status(403).json({ error: "Accès administrateur refusé." });
+    }
+    if (!adminIpAllowed(req)) {
+        return res.status(403).json({ error: "Ce panneau Admin n’est pas autorisé depuis cet appareil/réseau." });
+    }
+    next();
+}
+
+app.get("/api/admin/check", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+        res.json({ ok: true, admin: { id: req.user.id, name: req.user.name } });
+    } catch (err) { next(err); }
+});
+
+app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+        const [users, posts, comments, messages, groups] = await Promise.all([
+            pool.query("SELECT COUNT(*)::int AS count FROM users"),
+            pool.query("SELECT COUNT(*)::int AS count FROM posts"),
+            pool.query("SELECT COUNT(*)::int AS count FROM comments"),
+            pool.query("SELECT COUNT(*)::int AS count FROM messages"),
+            pool.query("SELECT COUNT(*)::int AS count FROM group_chats")
+        ]);
+        res.json({
+            users: users.rows[0].count,
+            posts: posts.rows[0].count,
+            comments: comments.rows[0].count,
+            messages: messages.rows[0].count,
+            groups: groups.rows[0].count
+        });
+    } catch (err) { next(err); }
+});
+
+app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+        const result = await pool.query(`
+            SELECT id, name, avatar_url, created_at, is_banned
+            FROM users
+            ORDER BY created_at DESC
+        `);
+        res.json({ users: result.rows });
+    } catch (err) { next(err); }
+});
+
+app.post("/api/admin/users/:userId/ban", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+        const id = Number(req.params.userId);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Utilisateur invalide." });
+        if (id === Number(req.user.id)) return res.status(400).json({ error: "Vous ne pouvez pas bloquer votre propre compte Admin." });
+        const r = await pool.query("UPDATE users SET is_banned=TRUE WHERE id=$1 RETURNING id,name,is_banned", [id]);
+        if (!r.rows.length) return res.status(404).json({ error: "Utilisateur introuvable." });
+        await pool.query("DELETE FROM sessions WHERE user_id=$1", [id]);
+        res.json({ ok: true, user: r.rows[0] });
+    } catch (err) { next(err); }
+});
+
+app.post("/api/admin/users/:userId/unban", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+        const id = Number(req.params.userId);
+        const r = await pool.query("UPDATE users SET is_banned=FALSE WHERE id=$1 RETURNING id,name,is_banned", [id]);
+        if (!r.rows.length) return res.status(404).json({ error: "Utilisateur introuvable." });
+        res.json({ ok: true, user: r.rows[0] });
+    } catch (err) { next(err); }
+});
+
+app.delete("/api/admin/users/:userId", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+        const id = Number(req.params.userId);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Utilisateur invalide." });
+        if (id === Number(req.user.id)) return res.status(400).json({ error: "Vous ne pouvez pas supprimer votre propre compte Admin." });
+        const r = await pool.query("DELETE FROM users WHERE id=$1 RETURNING id,name", [id]);
+        if (!r.rows.length) return res.status(404).json({ error: "Utilisateur introuvable." });
+        res.json({ ok: true, deleted: r.rows[0] });
+    } catch (err) { next(err); }
+});
+
+app.delete("/api/admin/posts/:postId", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+        const id = Number(req.params.postId);
+        const r = await pool.query("DELETE FROM posts WHERE id=$1 RETURNING id", [id]);
+        if (!r.rows.length) return res.status(404).json({ error: "Publication introuvable." });
+        res.json({ ok: true });
+    } catch (err) { next(err); }
+});
+
+app.delete("/api/admin/comments/:commentId", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+        const id = Number(req.params.commentId);
+        const r = await pool.query("DELETE FROM comments WHERE id=$1 RETURNING id", [id]);
+        if (!r.rows.length) return res.status(404).json({ error: "Commentaire introuvable." });
+        res.json({ ok: true });
+    } catch (err) { next(err); }
+});
+
+app.delete("/api/admin/groups/:groupId", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+        const id = Number(req.params.groupId);
+        const r = await pool.query("DELETE FROM group_chats WHERE id=$1 RETURNING id", [id]);
+        if (!r.rows.length) return res.status(404).json({ error: "Groupe introuvable." });
+        res.json({ ok: true });
+    } catch (err) { next(err); }
+});
 
 /* =========================================================
    الصفحة Accueil

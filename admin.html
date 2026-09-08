@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administration — SocialNet</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+.admin-wrap{max-width:1100px;margin:30px auto;padding:0 16px}.admin-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}.admin-head h1{margin:0}.admin-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}.admin-card,.admin-panel{background:var(--card,#fff);border-radius:14px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.08)}.admin-card b{display:block;font-size:28px;margin-top:6px}.admin-panel{margin-bottom:20px}.admin-table{width:100%;border-collapse:collapse}.admin-table th,.admin-table td{padding:10px;border-bottom:1px solid rgba(128,128,128,.2);text-align:left}.admin-user{display:flex;align-items:center;gap:10px}.admin-user img,.admin-avatar{width:42px;height:42px;border-radius:50%;object-fit:cover}.admin-actions{display:flex;gap:7px;flex-wrap:wrap}.admin-btn{border:0;border-radius:8px;padding:8px 12px;cursor:pointer}.admin-btn.danger{background:#d33;color:#fff}.admin-btn.ok{background:#198754;color:#fff}.admin-btn.neutral{background:#ddd;color:#111}.admin-msg{padding:12px;border-radius:8px;margin-bottom:15px;display:none}.admin-msg.error{display:block;background:#ffe5e5;color:#9b0000}.admin-msg.success{display:block;background:#e6ffed;color:#08752b}@media(max-width:800px){.admin-grid{grid-template-columns:repeat(2,1fr)}.admin-table{font-size:13px}.admin-table th:nth-child(3),.admin-table td:nth-child(3){display:none}}@media(max-width:520px){.admin-grid{grid-template-columns:1fr 1fr}.admin-head{align-items:flex-start;flex-direction:column}.admin-table th:nth-child(4),.admin-table td:nth-child(4){display:none}}
+</style>
+</head>
+<body>
+<div class="admin-wrap">
+  <div class="admin-head"><div><h1>👑 Administration</h1><div id="adminWho"></div></div><button class="admin-btn neutral" onclick="location.href='/'">Retour au site</button></div>
+  <div id="msg" class="admin-msg"></div>
+  <div class="admin-grid">
+    <div class="admin-card">Utilisateurs<b id="statUsers">—</b></div>
+    <div class="admin-card">Publications<b id="statPosts">—</b></div>
+    <div class="admin-card">Commentaires<b id="statComments">—</b></div>
+    <div class="admin-card">Messages<b id="statMessages">—</b></div>
+    <div class="admin-card">Groupes<b id="statGroups">—</b></div>
+  </div>
+  <div class="admin-panel"><h2>Utilisateurs</h2><div style="overflow:auto"><table class="admin-table"><thead><tr><th>Utilisateur</th><th>Créé le</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table></div></div>
+</div>
+<script src="/app.js"></script><script src="/admin.js"></script>
+</body>
+</html>
