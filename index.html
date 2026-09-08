@@ -3,130 +3,627 @@
 
 <head>
 
-  <meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-  <title>الرئيسية - SocialNet</title>
+    <title>الرئيسية - SocialNet</title>
 
-  <link
-    rel="stylesheet"
-    href="/style.css"
-  >
+    <link
+        rel="stylesheet"
+        href="/style.css"
+    >
 
 </head>
 
+<body>
 
-<body data-page="home">
+<header class="topbar">
 
-<header class="top-header">
+    <div class="brand">
+        <span class="brand-icon">SN</span>
+        <span>SocialNet</span>
+    </div>
 
-  <div class="header-user">
+    <div class="header-user">
 
-    <span>
-      👋 مرحبًا،
-    </span>
+        <span>
+            👋 مرحبًا،
+            <strong id="usernameDisplay">
+                ...
+            </strong>
+        </span>
 
-    <strong data-user-name>
-      ...
-    </strong>
+        <button
+            id="logoutButton"
+            class="logout-button"
+        >
+            خروج
+        </button>
 
-    <button
-      id="logoutButton"
-      class="logout-button"
-    >
-      خروج
-    </button>
-
-  </div>
-
-  <div class="logo">
-    SocialNet
-  </div>
+    </div>
 
 </header>
 
 
-<main class="main-container">
+<main class="container">
+
+    <nav class="nav-bar">
+
+        <a
+            href="/index.html"
+            class="nav-item active"
+        >
+            🏠 الرئيسية
+        </a>
+
+        <a
+            href="/profile.html"
+            class="nav-item"
+        >
+            👤 ملفي
+        </a>
+
+        <a
+            href="/friends.html"
+            class="nav-item"
+        >
+            👥 الأصدقاء
+        </a>
+
+        <a
+            href="/messages.html"
+            class="nav-item"
+        >
+            💬 الرسائل
+        </a>
+
+    </nav>
 
 
-  <nav class="nav-bar">
+    <section class="card composer">
 
-    <a
-      href="index.html"
-      class="nav-item"
-    >
-      🏠 الرئيسية
-    </a>
+        <h2>
+            ماذا تريد أن تنشر؟
+        </h2>
 
-    <a
-      href="profile.html"
-      class="nav-item"
-    >
-      👤 ملفي
-    </a>
+        <textarea
+            id="postBody"
+            maxlength="5000"
+            placeholder="بماذا تفكر؟"
+        ></textarea>
 
-    <a
-      href="friends.html"
-      class="nav-item"
-    >
-      👥 الأصدقاء
-    </a>
+        <input
+            id="postImage"
+            type="url"
+            maxlength="2000"
+            placeholder="رابط صورة (اختياري)"
+        >
 
-    <a
-      href="messages.html"
-      class="nav-item"
-    >
-      💬 الرسائل
-    </a>
+        <button
+            id="btnSubmit"
+            class="primary-button"
+        >
+            نشر
+        </button>
 
-  </nav>
+    </section>
 
 
-  <section class="card create-post">
+    <section>
 
-    <h2>
-      إنشاء منشور
-    </h2>
+        <div class="section-title">
+            <h2>آخر المنشورات</h2>
 
-    <textarea
-      id="postBody"
-      maxlength="5000"
-      placeholder="بماذا تفكر؟"
-    ></textarea>
+            <button
+                id="refreshButton"
+                class="secondary-button"
+            >
+                تحديث
+            </button>
+        </div>
 
-    <input
-      id="postImage"
-      type="url"
-      placeholder="رابط صورة (اختياري)"
-    >
+        <div id="postsFeed"></div>
 
-    <button
-      id="publishButton"
-      class="btn-primary"
-    >
-      نشر
-    </button>
-
-  </section>
+    </section>
 
 
-  <section id="postsFeed">
+    <section class="card danger-zone">
 
-    <div class="card empty">
-      جاري تحميل المنشورات...
-    </div>
+        <h3>
+            إدارة منشوراتي
+        </h3>
 
-  </section>
+        <p>
+            يمكنك حذف جميع منشوراتك.
+        </p>
 
+        <button
+            id="clearMine"
+            class="danger-button"
+        >
+            حذف جميع منشوراتي
+        </button>
+
+    </section>
 
 </main>
 
 
 <script src="/app.js"></script>
+
+<script>
+
+if (!SocialNet.requireLogin()) {
+    throw new Error("غير مسجل");
+}
+
+const usernameDisplay =
+    document.getElementById(
+        "usernameDisplay"
+    );
+
+const postBody =
+    document.getElementById(
+        "postBody"
+    );
+
+const postImage =
+    document.getElementById(
+        "postImage"
+    );
+
+const btnSubmit =
+    document.getElementById(
+        "btnSubmit"
+    );
+
+const postsFeed =
+    document.getElementById(
+        "postsFeed"
+    );
+
+
+/* =========================
+   تحميل المستخدم
+========================= */
+
+async function loadMe() {
+
+    const data =
+        await SocialNet.me();
+
+    sessionStorage.setItem(
+        "sn_user",
+        JSON.stringify(data.user)
+    );
+
+    usernameDisplay.textContent =
+        data.user.name;
+}
+
+
+/* =========================
+   تحميل المنشورات
+========================= */
+
+async function loadPosts() {
+
+    postsFeed.innerHTML = `
+        <div class="card loading">
+            جاري تحميل المنشورات...
+        </div>
+    `;
+
+    try {
+
+        const data =
+            await SocialNet.api(
+                "/api/posts"
+            );
+
+        if (!data.posts.length) {
+
+            postsFeed.innerHTML = `
+                <div class="card empty">
+                    لا توجد منشورات بعد.
+                    كن أول من ينشر! ✨
+                </div>
+            `;
+
+            return;
+        }
+
+        postsFeed.innerHTML =
+            data.posts
+                .map(renderPost)
+                .join("");
+
+    } catch (error) {
+
+        postsFeed.innerHTML = `
+            <div class="card error-box">
+                ${SocialNet.escape(
+                    error.message
+                )}
+            </div>
+        `;
+    }
+}
+
+
+/* =========================
+   رسم منشور
+========================= */
+
+function renderPost(post) {
+
+    const image =
+        post.image_url
+            ? `
+                <img
+                    src="${SocialNet.escapeAttribute(
+                        post.image_url
+                    )}"
+                    class="post-image"
+                    alt="صورة المنشور"
+                    onerror="this.style.display='none'"
+                >
+            `
+            : "";
+
+    const comments =
+        (post.comments || [])
+            .map(comment => `
+                <div class="comment-item">
+
+                    <strong>
+                        ${SocialNet.escape(
+                            comment.author
+                        )}
+                    </strong>
+
+                    <span>
+                        ${SocialNet.escape(
+                            comment.body
+                        )}
+                    </span>
+
+                </div>
+            `)
+            .join("");
+
+    return `
+        <article class="card post-card">
+
+            <div class="post-header">
+
+                <div class="post-author">
+
+                    <div class="avatar-small">
+                        👤
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            ${SocialNet.escape(
+                                post.author
+                            )}
+                        </strong>
+
+                        <small>
+                            ${SocialNet.formatDate(
+                                post.created_at
+                            )}
+                        </small>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            ${
+                post.body
+                    ? `
+                        <div class="post-content">
+                            ${SocialNet.escape(
+                                post.body
+                            ).replace(/\n/g, "<br>")}
+                        </div>
+                    `
+                    : ""
+            }
+
+
+            ${image}
+
+
+            <div class="post-actions">
+
+                <button
+                    class="
+                        like-button
+                        ${post.liked ? "liked" : ""}
+                    "
+                    onclick="toggleLike(${post.id})"
+                >
+                    ❤️
+                    ${post.likes_count || 0}
+                </button>
+
+            </div>
+
+
+            <div class="comments">
+
+                ${
+                    comments ||
+                    `<span class="muted">
+                        لا توجد تعليقات.
+                    </span>`
+                }
+
+            </div>
+
+
+            <form
+                class="comment-form"
+                onsubmit="addComment(event, ${post.id})"
+            >
+
+                <input
+                    type="text"
+                    maxlength="500"
+                    placeholder="اكتب تعليقًا..."
+                    required
+                >
+
+                <button
+                    type="submit"
+                    class="secondary-button"
+                >
+                    إرسال
+                </button>
+
+            </form>
+
+        </article>
+    `;
+}
+
+
+/* =========================
+   نشر
+========================= */
+
+btnSubmit.addEventListener(
+    "click",
+    async () => {
+
+        const body =
+            postBody.value.trim();
+
+        const imageUrl =
+            postImage.value.trim();
+
+        if (!body && !imageUrl) {
+
+            alert(
+                "اكتب نصًا أو ضع رابط صورة."
+            );
+
+            return;
+        }
+
+        btnSubmit.disabled = true;
+
+        btnSubmit.textContent =
+            "جاري النشر...";
+
+        try {
+
+            await SocialNet.api(
+                "/api/posts",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        body,
+                        imageUrl
+                    })
+                }
+            );
+
+            postBody.value = "";
+            postImage.value = "";
+
+            await loadPosts();
+
+        } catch (error) {
+
+            alert(
+                error.message
+            );
+
+        } finally {
+
+            btnSubmit.disabled = false;
+
+            btnSubmit.textContent =
+                "نشر";
+        }
+    }
+);
+
+
+/* =========================
+   إعجاب
+========================= */
+
+window.toggleLike =
+    async function(postId) {
+
+        try {
+
+            await SocialNet.api(
+                `/api/posts/${postId}/like`,
+                {
+                    method: "POST"
+                }
+            );
+
+            await loadPosts();
+
+        } catch (error) {
+
+            alert(
+                error.message
+            );
+        }
+    };
+
+
+/* =========================
+   تعليق
+========================= */
+
+window.addComment =
+    async function(event, postId) {
+
+        event.preventDefault();
+
+        const form =
+            event.target;
+
+        const input =
+            form.querySelector("input");
+
+        const body =
+            input.value.trim();
+
+        if (!body) return;
+
+        try {
+
+            await SocialNet.api(
+                `/api/posts/${postId}/comments`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        body
+                    })
+                }
+            );
+
+            input.value = "";
+
+            await loadPosts();
+
+        } catch (error) {
+
+            alert(
+                error.message
+            );
+        }
+    };
+
+
+/* =========================
+   حذف المنشورات
+========================= */
+
+document
+    .getElementById("clearMine")
+    .addEventListener(
+        "click",
+        async () => {
+
+            const confirmed =
+                confirm(
+                    "هل أنت متأكد من حذف جميع منشوراتك؟"
+                );
+
+            if (!confirmed) return;
+
+            try {
+
+                await SocialNet.api(
+                    "/api/my-posts",
+                    {
+                        method: "DELETE"
+                    }
+                );
+
+                await loadPosts();
+
+            } catch (error) {
+
+                alert(
+                    error.message
+                );
+            }
+        }
+    );
+
+
+/* =========================
+   خروج
+========================= */
+
+document
+    .getElementById("logoutButton")
+    .addEventListener(
+        "click",
+        () => SocialNet.logout()
+    );
+
+
+document
+    .getElementById("refreshButton")
+    .addEventListener(
+        "click",
+        loadPosts
+    );
+
+
+/* =========================
+   تشغيل
+========================= */
+
+(async function() {
+
+    try {
+
+        await loadMe();
+
+        await loadPosts();
+
+    } catch (error) {
+
+        console.error(error);
+
+    }
+
+})();
+
+</script>
 
 </body>
 </html>
