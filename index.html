@@ -19,181 +19,109 @@
 
 </head>
 
-<body>
 
-<header>
+<body data-page="home">
 
-  <div class="welcome">
+<header class="top-header">
+
+  <div class="header-user">
+
+    <span>
+      👋 مرحبًا،
+    </span>
+
+    <strong data-user-name>
+      ...
+    </strong>
 
     <button
       id="logoutButton"
-      class="small"
+      class="logout-button"
     >
       خروج
     </button>
 
-    <span>
-      👋 مرحبًا،
-      <strong id="usernameDisplay">...</strong>
-    </span>
-
   </div>
 
-  <div class="brand">
+  <div class="logo">
     SocialNet
   </div>
 
 </header>
 
 
-<nav>
-
-  <button
-    data-view="homeView"
-    class="active"
-  >
-    🏠 الرئيسية
-  </button>
-
-  <button
-    data-view="profileView"
-  >
-    👤 ملفي
-  </button>
-
-  <button
-    data-view="friendsView"
-  >
-    👥 المستخدمون
-  </button>
-
-  <button
-    data-view="messagesView"
-  >
-    💬 الرسائل
-  </button>
-
-</nav>
+<main class="main-container">
 
 
-<main>
+  <nav class="nav-bar">
 
-  <!-- الرئيسية -->
+    <a
+      href="index.html"
+      class="nav-item"
+    >
+      🏠 الرئيسية
+    </a>
 
-  <section id="homeView" class="view">
+    <a
+      href="profile.html"
+      class="nav-item"
+    >
+      👤 ملفي
+    </a>
 
-    <div class="composer">
+    <a
+      href="friends.html"
+      class="nav-item"
+    >
+      👥 الأصدقاء
+    </a>
 
-      <textarea
-        id="postBody"
-        maxlength="5000"
-        placeholder="بماذا تفكر؟"
-      ></textarea>
+    <a
+      href="messages.html"
+      class="nav-item"
+    >
+      💬 الرسائل
+    </a>
 
-      <input
-        id="postImage"
-        type="text"
-        maxlength="2000"
-        placeholder="رابط صورة (اختياري)"
-      >
-
-      <button id="publishButton">
-        نشر
-      </button>
-
-    </div>
-
-    <div id="postsFeed"></div>
-
-  </section>
+  </nav>
 
 
-  <!-- الملف الشخصي -->
+  <section class="card create-post">
 
-  <section
-    id="profileView"
-    class="view hidden"
-  >
+    <h2>
+      إنشاء منشور
+    </h2>
 
-    <div class="panel profile">
+    <textarea
+      id="postBody"
+      maxlength="5000"
+      placeholder="بماذا تفكر؟"
+    ></textarea>
 
-      <div class="avatar">
-        👤
-      </div>
+    <input
+      id="postImage"
+      type="url"
+      placeholder="رابط صورة (اختياري)"
+    >
 
-      <h2 id="profileName">
-        ...
-      </h2>
-
-      <p>
-        مرحبًا بك في ملفك الشخصي.
-      </p>
-
-      <button
-        id="deleteMyPosts"
-        class="small"
-      >
-        حذف جميع منشوراتي
-      </button>
-
-    </div>
+    <button
+      id="publishButton"
+      class="btn-primary"
+    >
+      نشر
+    </button>
 
   </section>
 
 
-  <!-- المستخدمون -->
+  <section id="postsFeed">
 
-  <section
-    id="friendsView"
-    class="view hidden"
-  >
-
-    <div class="panel">
-
-      <h2>
-        👥 المستخدمون
-      </h2>
-
-      <div
-        id="friendsList"
-        style="margin-top:15px"
-      ></div>
-
+    <div class="card empty">
+      جاري تحميل المنشورات...
     </div>
 
   </section>
 
-
-  <!-- الرسائل -->
-
-  <section
-    id="messagesView"
-    class="view hidden"
-  >
-
-    <div class="panel">
-
-      <h2>
-        💬 الرسائل
-      </h2>
-
-      <p>
-        اختر مستخدمًا لبدء المحادثة.
-      </p>
-
-      <div
-        id="messageUsers"
-        style="margin-top:15px"
-      ></div>
-
-      <div
-        id="chat"
-        class="chat hidden"
-      ></div>
-
-    </div>
-
-  </section>
 
 </main>
 
