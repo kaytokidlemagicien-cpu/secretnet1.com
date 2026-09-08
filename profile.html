@@ -3,111 +3,186 @@
 
 <head>
 
-  <meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-  <title>ملفي - SocialNet</title>
+    <title>ملفي - SocialNet</title>
 
-  <link
-    rel="stylesheet"
-    href="/style.css"
-  >
+    <link
+        rel="stylesheet"
+        href="/style.css"
+    >
 
 </head>
 
+<body>
 
-<body data-page="profile">
+<header class="topbar">
 
+    <div class="brand">
+        <span class="brand-icon">SN</span>
+        SocialNet
+    </div>
 
-<header class="top-header">
+    <div class="header-user">
 
-  <div class="header-user">
+        <span id="usernameDisplay">
+            ...
+        </span>
 
-    <span>
-      👋 مرحبًا،
-    </span>
+        <button
+            id="logoutButton"
+            class="logout-button"
+        >
+            خروج
+        </button>
 
-    <strong data-user-name>
-      ...
-    </strong>
-
-    <button
-      id="logoutButton"
-      class="logout-button"
-    >
-      خروج
-    </button>
-
-  </div>
-
-  <div class="logo">
-    SocialNet
-  </div>
+    </div>
 
 </header>
 
 
-<main class="main-container">
+<main class="container">
+
+    <nav class="nav-bar">
+
+        <a
+            href="/index.html"
+            class="nav-item"
+        >
+            🏠 الرئيسية
+        </a>
+
+        <a
+            href="/profile.html"
+            class="nav-item active"
+        >
+            👤 ملفي
+        </a>
+
+        <a
+            href="/friends.html"
+            class="nav-item"
+        >
+            👥 الأصدقاء
+        </a>
+
+        <a
+            href="/messages.html"
+            class="nav-item"
+        >
+            💬 الرسائل
+        </a>
+
+    </nav>
 
 
-  <nav class="nav-bar">
+    <section class="profile-card card">
 
-    <a
-      href="index.html"
-      class="nav-item"
-    >
-      🏠 الرئيسية
-    </a>
+        <div class="profile-avatar">
+            👤
+        </div>
 
-    <a
-      href="profile.html"
-      class="nav-item"
-    >
-      👤 ملفي
-    </a>
+        <h1 id="profileName">
+            ...
+        </h1>
 
-    <a
-      href="friends.html"
-      class="nav-item"
-    >
-      👥 الأصدقاء
-    </a>
+        <p>
+            مرحبًا بك في ملفك الشخصي على SocialNet.
+        </p>
 
-    <a
-      href="messages.html"
-      class="nav-item"
-    >
-      💬 الرسائل
-    </a>
+        <div class="profile-info">
 
-  </nav>
+            <div>
+                <span>رقم المستخدم</span>
+                <strong id="profileId">...</strong>
+            </div>
 
+            <div>
+                <span>تاريخ التسجيل</span>
+                <strong id="profileDate">...</strong>
+            </div>
 
-  <section class="card profile-card">
+        </div>
 
-    <div class="profile-avatar">
-      👤
-    </div>
-
-    <h1 id="profileName">
-      ...
-    </h1>
-
-    <p>
-      مرحبًا بك في ملفك الشخصي على SocialNet.
-    </p>
-
-  </section>
-
+    </section>
 
 </main>
 
 
 <script src="/app.js"></script>
+
+<script>
+
+if (!SocialNet.requireLogin()) {
+    throw new Error("غير مسجل");
+}
+
+const usernameDisplay =
+    document.getElementById(
+        "usernameDisplay"
+    );
+
+const profileName =
+    document.getElementById(
+        "profileName"
+    );
+
+const profileId =
+    document.getElementById(
+        "profileId"
+    );
+
+const profileDate =
+    document.getElementById(
+        "profileDate"
+    );
+
+document
+    .getElementById("logoutButton")
+    .addEventListener(
+        "click",
+        () => SocialNet.logout()
+    );
+
+
+(async function() {
+
+    try {
+
+        const data =
+            await SocialNet.me();
+
+        const user =
+            data.user;
+
+        usernameDisplay.textContent =
+            "👋 " + user.name;
+
+        profileName.textContent =
+            user.name;
+
+        profileId.textContent =
+            user.id;
+
+        profileDate.textContent =
+            SocialNet.formatDate(
+                user.created_at
+            );
+
+    } catch (error) {
+
+        console.error(error);
+
+    }
+
+})();
+
+</script>
 
 </body>
 </html>
