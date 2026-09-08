@@ -3,111 +3,232 @@
 
 <head>
 
-  <meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-  <title>الأصدقاء - SocialNet</title>
+    <title>الأصدقاء - SocialNet</title>
 
-  <link
-    rel="stylesheet"
-    href="/style.css"
-  >
+    <link
+        rel="stylesheet"
+        href="/style.css"
+    >
 
 </head>
 
+<body>
 
-<body data-page="friends">
+<header class="topbar">
 
+    <div class="brand">
+        <span class="brand-icon">SN</span>
+        SocialNet
+    </div>
 
-<header class="top-header">
+    <div class="header-user">
 
-  <div class="header-user">
+        <span id="usernameDisplay">
+            ...
+        </span>
 
-    <span>
-      👋 مرحبًا،
-    </span>
+        <button
+            id="logoutButton"
+            class="logout-button"
+        >
+            خروج
+        </button>
 
-    <strong data-user-name>
-      ...
-    </strong>
-
-    <button
-      id="logoutButton"
-      class="logout-button"
-    >
-      خروج
-    </button>
-
-  </div>
-
-  <div class="logo">
-    SocialNet
-  </div>
+    </div>
 
 </header>
 
 
-<main class="main-container">
+<main class="container">
+
+    <nav class="nav-bar">
+
+        <a
+            href="/index.html"
+            class="nav-item"
+        >
+            🏠 الرئيسية
+        </a>
+
+        <a
+            href="/profile.html"
+            class="nav-item"
+        >
+            👤 ملفي
+        </a>
+
+        <a
+            href="/friends.html"
+            class="nav-item active"
+        >
+            👥 الأصدقاء
+        </a>
+
+        <a
+            href="/messages.html"
+            class="nav-item"
+        >
+            💬 الرسائل
+        </a>
+
+    </nav>
 
 
-  <nav class="nav-bar">
+    <section class="card">
 
-    <a
-      href="index.html"
-      class="nav-item"
-    >
-      🏠 الرئيسية
-    </a>
+        <div class="section-title">
 
-    <a
-      href="profile.html"
-      class="nav-item"
-    >
-      👤 ملفي
-    </a>
+            <h1>
+                👥 المستخدمون
+            </h1>
 
-    <a
-      href="friends.html"
-      class="nav-item"
-    >
-      👥 الأصدقاء
-    </a>
+            <button
+                id="refreshUsers"
+                class="secondary-button"
+            >
+                تحديث
+            </button>
 
-    <a
-      href="messages.html"
-      class="nav-item"
-    >
-      💬 الرسائل
-    </a>
+        </div>
 
-  </nav>
+        <div id="usersList">
+            جاري التحميل...
+        </div>
 
-
-  <section class="card">
-
-    <h2>
-      👥 المستخدمون
-    </h2>
-
-    <div id="friendsList">
-
-      <div class="empty">
-        جاري تحميل المستخدمين...
-      </div>
-
-    </div>
-
-  </section>
-
+    </section>
 
 </main>
 
 
 <script src="/app.js"></script>
+
+<script>
+
+if (!SocialNet.requireLogin()) {
+    throw new Error("غير مسجل");
+}
+
+
+const usernameDisplay =
+    document.getElementById(
+        "usernameDisplay"
+    );
+
+const usersList =
+    document.getElementById(
+        "usersList"
+    );
+
+
+document
+    .getElementById("logoutButton")
+    .addEventListener(
+        "click",
+        () => SocialNet.logout()
+    );
+
+
+async function loadUsers() {
+
+    usersList.innerHTML =
+        `<p class="muted">
+            جاري تحميل المستخدمين...
+        </p>`;
+
+    try {
+
+        const me =
+            await SocialNet.me();
+
+        usernameDisplay.textContent =
+            "👋 " + me.user.name;
+
+        const data =
+            await SocialNet.api(
+                "/api/users"
+            );
+
+        if (!data.users.length) {
+
+            usersList.innerHTML =
+                `<div class="empty">
+                    لا يوجد مستخدمون آخرون حتى الآن.
+                </div>`;
+
+            return;
+        }
+
+        usersList.innerHTML =
+            data.users
+                .map(user => `
+                    <div class="user-row">
+
+                        <div class="user-info-row">
+
+                            <div class="avatar-small">
+                                👤
+                            </div>
+
+                            <div>
+
+                                <strong>
+                                    ${SocialNet.escape(
+                                        user.name
+                                    )}
+                                </strong>
+
+                                <small>
+                                    عضو منذ
+                                    ${SocialNet.formatDate(
+                                        user.created_at
+                                    )}
+                                </small>
+
+                            </div>
+
+                        </div>
+
+                        <a
+                            href="/messages.html?user=${user.id}"
+                            class="primary-button small-button"
+                        >
+                            💬 مراسلة
+                        </a>
+
+                    </div>
+                `)
+                .join("");
+
+    } catch (error) {
+
+        usersList.innerHTML =
+            `<div class="error-box">
+                ${SocialNet.escape(
+                    error.message
+                )}
+            </div>`;
+    }
+}
+
+
+document
+    .getElementById("refreshUsers")
+    .addEventListener(
+        "click",
+        loadUsers
+    );
+
+
+loadUsers();
+
+</script>
 
 </body>
 </html>
