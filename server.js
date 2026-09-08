@@ -595,21 +595,54 @@ async function initDb() {
         await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`);
         await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
 
-        // دعم أسماء الأعمدة القديمة إن كانت النسخة السابقة تستخدم sender/receiver.
+        // توافق شامل مع جداول friendships القديمة.
+        // بعض النسخ القديمة كانت تستخدم: sender_id/receiver_id أو user1_id/user2_id
+        // أو user_id/friend_id. ننقل البيانات القديمة إلى requester_id/addressee_id.
         await pool.query(`
             DO $$
             BEGIN
-                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='friendships' AND column_name='sender_id')
-                   AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='friendships' AND column_name='receiver_id') THEN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='sender_id')
+                   AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='receiver_id') THEN
                     UPDATE friendships
                     SET requester_id = COALESCE(requester_id, sender_id),
                         addressee_id = COALESCE(addressee_id, receiver_id)
                     WHERE requester_id IS NULL OR addressee_id IS NULL;
                 END IF;
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='user1_id')
+                   AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='user2_id') THEN
+                    UPDATE friendships
+                    SET requester_id = COALESCE(requester_id, user1_id),
+                        addressee_id = COALESCE(addressee_id, user2_id)
+                    WHERE requester_id IS NULL OR addressee_id IS NULL;
+                END IF;
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='user_id')
+                   AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='friend_id') THEN
+                    UPDATE friendships
+                    SET requester_id = COALESCE(requester_id, user_id),
+                        addressee_id = COALESCE(addressee_id, friend_id)
+                    WHERE requester_id IS NULL OR addressee_id IS NULL;
+                END IF;
+
+                -- الأعمدة القديمة user_id/friend_id قد تكون NOT NULL،
+                -- لذلك نجعلها اختيارية بعد نقل البيانات حتى لا تمنع INSERT الجديد.
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='user_id') THEN
+                    ALTER TABLE friendships ALTER COLUMN user_id DROP NOT NULL;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='friend_id') THEN
+                    ALTER TABLE friendships ALTER COLUMN friend_id DROP NOT NULL;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='user1_id') THEN
+                    ALTER TABLE friendships ALTER COLUMN user1_id DROP NOT NULL;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='user2_id') THEN
+                    ALTER TABLE friendships ALTER COLUMN user2_id DROP NOT NULL;
+                END IF;
             END $$;
         `);
 
-        // حذف الصفوف غير الصالحة قبل فرض القيود.
+        // حذف الصفوف القديمة غير الصالحة فقط؛ لا نحذف الصداقات الصحيحة.
         await pool.query(`DELETE FROM friendships WHERE requester_id IS NULL OR addressee_id IS NULL OR requester_id = addressee_id`);
         await pool.query(`ALTER TABLE friendships ALTER COLUMN requester_id SET NOT NULL`);
         await pool.query(`ALTER TABLE friendships ALTER COLUMN addressee_id SET NOT NULL`);
