@@ -2,17 +2,26 @@
 <html lang="ar" dir="rtl">
 
 <head>
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
   <title>تسجيل الدخول - SocialNet</title>
 
-  <link rel="stylesheet" href="/style.css">
+  <link
+    rel="stylesheet"
+    href="/style.css"
+  >
+
 </head>
 
-<body>
+<body class="login-page">
 
-  <div class="gate">
+  <div class="login-wrapper">
 
     <div class="login-card">
 
@@ -20,22 +29,32 @@
         SN
       </div>
 
-      <h1>SocialNet</h1>
+      <h1>
+        SocialNet
+      </h1>
 
-      <p>
+      <p class="login-description">
         أدخل اسمك وكلمة مرور الموقع للدخول
       </p>
 
       <form id="loginForm">
+
+        <label for="userName">
+          اسمك
+        </label>
 
         <input
           id="userName"
           type="text"
           maxlength="30"
           autocomplete="name"
-          placeholder="اسمك"
+          placeholder="اكتب اسمك"
           required
         >
+
+        <label for="sitePassword">
+          كلمة المرور
+        </label>
 
         <input
           id="sitePassword"
@@ -48,6 +67,7 @@
         <button
           id="loginButton"
           type="submit"
+          class="btn-primary login-button"
         >
           دخول
         </button>
@@ -63,31 +83,45 @@
 
   </div>
 
+
 <script>
 
-const form = document.getElementById("loginForm");
+const form =
+  document.getElementById(
+    "loginForm"
+  );
 
-const nameInput = document.getElementById("userName");
+const nameInput =
+  document.getElementById(
+    "userName"
+  );
 
 const passwordInput =
-  document.getElementById("sitePassword");
+  document.getElementById(
+    "sitePassword"
+  );
 
 const button =
-  document.getElementById("loginButton");
+  document.getElementById(
+    "loginButton"
+  );
 
 const error =
-  document.getElementById("loginError");
+  document.getElementById(
+    "loginError"
+  );
 
 
-/*
-  إذا كانت هناك جلسة في هذا التبويب،
-  نتحقق منها.
-*/
+// ==========================================
+// Check this browser tab only
+// ==========================================
 
 async function checkExistingTabSession() {
 
   const token =
-    sessionStorage.getItem("sn_token");
+    sessionStorage.getItem(
+      "sn_token"
+    );
 
   if (!token) {
     return;
@@ -95,127 +129,153 @@ async function checkExistingTabSession() {
 
   try {
 
-    const response = await fetch("/api/me", {
-      headers: {
-        "Authorization":
-          "Bearer " + token
-      }
-    });
+    const response =
+      await fetch(
+        "/api/me",
+        {
+          headers: {
+            Authorization:
+              "Bearer " + token
+          }
+        }
+      );
 
     if (response.ok) {
 
-      location.replace("/index.html");
+      location.replace(
+        "/index.html"
+      );
 
-    } else {
-
-      sessionStorage.removeItem("sn_token");
+      return;
 
     }
 
-  } catch (error) {
+    sessionStorage.removeItem(
+      "sn_token"
+    );
 
-    console.error(error);
+    sessionStorage.removeItem(
+      "sn_user"
+    );
+
+  } catch (err) {
+
+    console.error(err);
 
   }
 
 }
 
 
-/*
-  تسجيل الدخول
-*/
+// ==========================================
+// Login
+// ==========================================
 
-form.addEventListener("submit", async function(event) {
+form.addEventListener(
+  "submit",
+  async event => {
 
-  event.preventDefault();
+    event.preventDefault();
 
-  error.textContent = "";
+    error.textContent = "";
 
-  const name =
-    nameInput.value.trim();
+    const name =
+      nameInput.value.trim();
 
-  const password =
-    passwordInput.value;
+    const password =
+      passwordInput.value;
 
-  if (!name || !password) {
+    if (
+      !name ||
+      !password
+    ) {
 
-    error.textContent =
-      "أدخل الاسم وكلمة المرور.";
+      error.textContent =
+        "أدخل الاسم وكلمة المرور.";
 
-    return;
-  }
-
-  button.disabled = true;
-
-  button.textContent =
-    "جاري الدخول...";
-
-  try {
-
-    const response = await fetch(
-      "/api/enter",
-      {
-        method: "POST",
-
-        headers: {
-          "Content-Type":
-            "application/json"
-        },
-
-        body: JSON.stringify({
-          name,
-          password
-        })
-      }
-    );
-
-    const data =
-      await response.json()
-        .catch(() => ({}));
-
-    if (!response.ok) {
-
-      throw new Error(
-        data.error ||
-        "فشل تسجيل الدخول."
-      );
+      return;
 
     }
 
-    /*
-      أهم نقطة:
-      تخزين Token في sessionStorage.
-
-      sessionStorage منفصل لكل تبويب.
-    */
-
-    sessionStorage.setItem(
-      "sn_token",
-      data.token
-    );
-
-    sessionStorage.setItem(
-      "sn_user",
-      JSON.stringify(data.user)
-    );
-
-    location.replace("/index.html");
-
-  } catch (err) {
-
-    error.textContent =
-      err.message;
-
-  } finally {
-
-    button.disabled = false;
+    button.disabled = true;
 
     button.textContent =
-      "دخول";
+      "جاري الدخول...";
+
+    try {
+
+      const response =
+        await fetch(
+          "/api/enter",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body: JSON.stringify({
+              name,
+              password
+            })
+          }
+        );
+
+      const data =
+        await response
+          .json()
+          .catch(() => ({}));
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.error ||
+          "فشل تسجيل الدخول."
+        );
+
+      }
+
+      // ==================================
+      // تخزين الجلسة لهذا التبويب فقط
+      // ==================================
+
+      sessionStorage.setItem(
+        "sn_token",
+        data.token
+      );
+
+      sessionStorage.setItem(
+        "sn_user",
+        JSON.stringify(
+          data.user
+        )
+      );
+
+      // ==================================
+      // الدخول المباشر
+      // ==================================
+
+      location.replace(
+        "/index.html"
+      );
+
+    } catch (err) {
+
+      error.textContent =
+        err.message;
+
+    } finally {
+
+      button.disabled = false;
+
+      button.textContent =
+        "دخول";
+
+    }
 
   }
-
-});
+);
 
 
 checkExistingTabSession();
