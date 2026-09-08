@@ -567,16 +567,42 @@ async function initDb() {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS friendships (
                 id BIGSERIAL PRIMARY KEY,
-                requester_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                addressee_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                status TEXT NOT NULL DEFAULT 'pending'
-                    CHECK (status IN ('pending','accepted','rejected')),
+                requester_id BIGINT,
+                addressee_id BIGINT,
+                status TEXT NOT NULL DEFAULT 'pending',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                CHECK (requester_id <> addressee_id),
-                UNIQUE (requester_id, addressee_id)
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         `);
+
+        // ترقية جدول friendships القديم إن كان موجودًا من نسخة سابقة.
+        // CREATE TABLE IF NOT EXISTS لا يضيف أعمدة إلى جدول موجود، لذلك نستخدم
+        // ALTER TABLE IF NOT EXISTS قبل إنشاء الفهارس والقيود الجديدة.
+        await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS requester_id BIGINT`);
+        await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS addressee_id BIGINT`);
+        await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending'`);
+        await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`);
+        await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+
+        // دعم أسماء الأعمدة القديمة إن كانت النسخة السابقة تستخدم sender/receiver.
+        await pool.query(`
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='friendships' AND column_name='sender_id')
+                   AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='friendships' AND column_name='receiver_id') THEN
+                    UPDATE friendships
+                    SET requester_id = COALESCE(requester_id, sender_id),
+                        addressee_id = COALESCE(addressee_id, receiver_id)
+                    WHERE requester_id IS NULL OR addressee_id IS NULL;
+                END IF;
+            END $$;
+        `);
+
+        // حذف الصفوف غير الصالحة قبل فرض القيود.
+        await pool.query(`DELETE FROM friendships WHERE requester_id IS NULL OR addressee_id IS NULL OR requester_id = addressee_id`);
+        await pool.query(`ALTER TABLE friendships ALTER COLUMN requester_id SET NOT NULL`);
+        await pool.query(`ALTER TABLE friendships ALTER COLUMN addressee_id SET NOT NULL`);
+        await pool.query(`ALTER TABLE friendships ALTER COLUMN status SET DEFAULT 'pending'`);
         await pool.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS friendships_pair_unique
             ON friendships (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id));

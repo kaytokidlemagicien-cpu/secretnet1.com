@@ -8,18 +8,10 @@ function postCard(p){
 async function load(){
  postsBox.innerHTML='<div class="loading">جاري تحميل المنشورات...</div>';
  try{
-  const me=SocialNet.user();
-  const requested=Number(new URLSearchParams(location.search).get("user"));
-  const target=Number.isInteger(requested)&&requested>0?requested:me.id;
-  const d=await SocialNet.api("/api/users/"+target),u=d.user;
-  document.getElementById("profileName").textContent=u.name;
-  document.getElementById("profileId").textContent=u.id;
-  document.getElementById("profileDate").textContent=SocialNet.date(u.created_at);
-  const old=document.getElementById("profileAvatar");
-  if(old) old.outerHTML=SocialNet.avatarHTML(u.avatar_url,u.name).replace('class="avatar"','class="avatar avatar-large"').replace('class="avatar avatar-large"','id="profileAvatar" class="avatar avatar-large"');
-  const own=Number(me.id)===Number(u.id);
-  const change=document.getElementById("changeAvatar"), input=document.getElementById("avatarInput");
-  if(change) change.hidden=!own; if(input) input.hidden=!own;
+  const d=await SocialNet.api("/api/users/"+SocialNet.user().id),u=d.user;
+  document.getElementById("profileName").textContent=u.name;document.getElementById("profileId").textContent=u.id;document.getElementById("profileDate").textContent=SocialNet.date(u.created_at);
+  document.getElementById("profileAvatar").outerHTML=SocialNet.avatarHTML(u.avatar_url,u.name).replace('class="avatar"','class="avatar avatar-large"');
+  sessionStorage.setItem("sn_user",JSON.stringify(u));
   postsBox.innerHTML=d.posts.length?d.posts.map(postCard).join(""):'<div class="card empty">لا توجد منشورات بعد.</div>';
  }catch(e){postsBox.innerHTML='<div class="card empty">'+SocialNet.escape(e.message)+'</div>'}
 }
