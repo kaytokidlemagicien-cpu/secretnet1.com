@@ -7,7 +7,7 @@ const rateLimit = require("express-rate-limit");
 const { Pool } = require("pg");
 
 /* =========================================================
-   تحميل ملف .env بدون dotenv
+   تحميل .env
 ========================================================= */
 
 try {
@@ -63,7 +63,7 @@ const DATABASE_URL =
 
 if (!DATABASE_URL) {
   console.error(
-    "❌ DATABASE_URL غير موجودة. تأكد من ملف .env أو إعدادات Render."
+    "❌ DATABASE_URL غير موجودة."
   );
 }
 
@@ -73,6 +73,7 @@ if (!DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
+
   ssl:
     DATABASE_URL &&
     !DATABASE_URL.includes("localhost")
@@ -94,8 +95,17 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(
+  express.json({
+    limit: "1mb"
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true
+  })
+);
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -112,14 +122,16 @@ const writeLimiter = rateLimit({
 });
 
 /* =========================================================
-   إنشاء / تحديث قاعدة البيانات
+   قاعدة البيانات
 ========================================================= */
 
 async function initDb() {
+
   try {
-    /*
-      محاولة توافق مع النسخ القديمة.
-    */
+
+    /* -----------------------------------------------------
+       توافق المنشورات القديمة
+    ----------------------------------------------------- */
 
     await pool.query(`
       DO $$
@@ -128,39 +140,47 @@ async function initDb() {
         IF EXISTS (
           SELECT 1
           FROM information_schema.columns
-          WHERE table_name='posts'
-          AND column_name='file_url'
+          WHERE table_name = 'posts'
+          AND column_name = 'file_url'
         )
         AND NOT EXISTS (
           SELECT 1
           FROM information_schema.columns
-          WHERE table_name='posts'
-          AND column_name='image_url'
+          WHERE table_name = 'posts'
+          AND column_name = 'image_url'
         )
         THEN
+
           ALTER TABLE posts
           RENAME COLUMN file_url TO image_url;
+
         END IF;
+
 
         IF EXISTS (
           SELECT 1
           FROM information_schema.tables
-          WHERE table_name='likes'
+          WHERE table_name = 'likes'
         )
         AND NOT EXISTS (
           SELECT 1
           FROM information_schema.tables
-          WHERE table_name='post_likes'
+          WHERE table_name = 'post_likes'
         )
         THEN
+
           ALTER TABLE likes
           RENAME TO post_likes;
+
         END IF;
 
       END $$;
     `);
 
-    /* users */
+
+    /* -----------------------------------------------------
+       users
+    ----------------------------------------------------- */
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -170,11 +190,15 @@ async function initDb() {
       );
     `);
 
-    /* posts */
+
+    /* -----------------------------------------------------
+       posts
+    ----------------------------------------------------- */
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS posts (
         id BIGSERIAL PRIMARY KEY,
+
         author_id BIGINT NOT NULL
           REFERENCES users(id)
           ON DELETE CASCADE,
@@ -187,7 +211,10 @@ async function initDb() {
       );
     `);
 
-    /* likes */
+
+    /* -----------------------------------------------------
+       post_likes
+    ----------------------------------------------------- */
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS post_likes (
@@ -205,7 +232,10 @@ async function initDb() {
       );
     `);
 
-    /* comments */
+
+    /* -----------------------------------------------------
+       comments
+    ----------------------------------------------------- */
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS comments (
@@ -225,7 +255,10 @@ async function initDb() {
       );
     `);
 
-    /* messages */
+
+    /* -----------------------------------------------------
+       messages
+    ----------------------------------------------------- */
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS messages (
@@ -245,66 +278,187 @@ async function initDb() {
       );
     `);
 
-    /* sessions */
+
+    /* =====================================================
+       SESSIONS
+       مهم جدًا:
+       هنا نعالج الجدول القديم الموجود مسبقًا
+    ===================================================== */
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS sessions (
-        token_hash TEXT PRIMARY KEY,
-
-        user_id BIGINT NOT NULL
-          REFERENCES users(id)
-          ON DELETE CASCADE,
-
-        expires_at TIMESTAMPTZ NOT NULL,
-
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        token_hash TEXT,
+        user_id BIGINT,
+        expires_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
 
-    /* indexes */
+
+    /* -----------------------------------------------------
+       إضافة الأعمدة الناقصة إلى sessions القديمة
+    ----------------------------------------------------- */
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS posts_created_idx
+      DO $$
+      BEGIN
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'sessions'
+          AND column_name = 'token_hash'
+        )
+        THEN
+
+          ALTER TABLE sessions
+          ADD COLUMN token_hash TEXT;
+
+        END IF;
+
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'sessions'
+          AND column_name = 'user_id'
+        )
+        THEN
+
+          ALTER TABLE sessions
+          ADD COLUMN user_id BIGINT;
+
+        END IF;
+
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'sessions'
+          AND column_name = 'expires_at'
+        )
+        THEN
+
+          ALTER TABLE sessions
+          ADD COLUMN expires_at TIMESTAMPTZ;
+
+        END IF;
+
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'sessions'
+          AND column_name = 'created_at'
+        )
+        THEN
+
+          ALTER TABLE sessions
+          ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW();
+
+        END IF;
+
+      END $$;
+    `);
+
+
+    /* -----------------------------------------------------
+       حذف الجلسات القديمة غير الصالحة
+       لا نحذف المستخدمين أو المنشورات
+    ----------------------------------------------------- */
+
+    await pool.query(`
+      DELETE FROM sessions
+      WHERE token_hash IS NULL
+         OR user_id IS NULL
+         OR expires_at IS NULL;
+    `);
+
+
+    /* -----------------------------------------------------
+       فهرس Token
+    ----------------------------------------------------- */
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS
+      sessions_token_hash_unique_idx
+      ON sessions(token_hash);
+    `);
+
+
+    /* -----------------------------------------------------
+       فهرس المستخدم
+    ----------------------------------------------------- */
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS
+      sessions_user_idx
+      ON sessions(user_id);
+    `);
+
+
+    /* -----------------------------------------------------
+       فهرس انتهاء الجلسة
+    ----------------------------------------------------- */
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS
+      sessions_expiry_idx
+      ON sessions(expires_at);
+    `);
+
+
+    /* -----------------------------------------------------
+       باقي الفهارس
+    ----------------------------------------------------- */
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS
+      posts_created_idx
       ON posts(created_at DESC);
     `);
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS comments_post_idx
+      CREATE INDEX IF NOT EXISTS
+      comments_post_idx
       ON comments(post_id, created_at);
     `);
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS messages_pair_idx
+      CREATE INDEX IF NOT EXISTS
+      messages_pair_idx
       ON messages(sender_id, receiver_id, created_at);
     `);
 
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS sessions_user_idx
-      ON sessions(user_id);
-    `);
-
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS sessions_expiry_idx
-      ON sessions(expires_at);
-    `);
 
     console.log("✅ PostgreSQL جاهزة.");
+    console.log("✅ جدول sessions تم فحصه وتحديثه.");
+
   } catch (err) {
-    console.error("❌ خطأ في قاعدة البيانات:", err);
+
+    console.error(
+      "❌ خطأ في قاعدة البيانات:",
+      err
+    );
+
+    throw err;
   }
 }
-
-initDb();
 
 /* =========================================================
    أدوات الجلسة
 ========================================================= */
 
 function createToken() {
-  return crypto.randomBytes(32).toString("hex");
+
+  return crypto
+    .randomBytes(32)
+    .toString("hex");
 }
 
+
 function hashToken(token) {
+
   return crypto
     .createHash("sha256")
     .update(token)
@@ -316,46 +470,70 @@ function hashToken(token) {
 ========================================================= */
 
 async function requireAuth(req, res, next) {
+
   try {
-    const header = req.headers.authorization || "";
+
+    const header =
+      req.headers.authorization || "";
+
 
     if (!header.startsWith("Bearer ")) {
+
       return res.status(401).json({
         error: "يجب تسجيل الدخول أولاً."
       });
+
     }
 
-    const token = header.slice(7).trim();
+
+    const token =
+      header.slice(7).trim();
+
 
     if (!token) {
+
       return res.status(401).json({
         error: "جلسة غير صالحة."
       });
+
     }
 
-    const tokenHash = hashToken(token);
 
-    const result = await pool.query(
-      `
-      SELECT
-        s.user_id,
-        u.name,
-        u.created_at
-      FROM sessions s
-      JOIN users u
-        ON u.id = s.user_id
-      WHERE s.token_hash = $1
-        AND s.expires_at > NOW()
-      LIMIT 1
-      `,
-      [tokenHash]
-    );
+    const tokenHash =
+      hashToken(token);
+
+
+    const result =
+      await pool.query(
+        `
+        SELECT
+          s.user_id,
+          u.name,
+          u.created_at
+
+        FROM sessions s
+
+        JOIN users u
+          ON u.id = s.user_id
+
+        WHERE s.token_hash = $1
+          AND s.expires_at > NOW()
+
+        LIMIT 1
+        `,
+        [tokenHash]
+      );
+
 
     if (!result.rows.length) {
+
       return res.status(401).json({
-        error: "انتهت الجلسة. سجل الدخول من جديد."
+        error:
+          "انتهت الجلسة. سجل الدخول من جديد."
       });
+
     }
+
 
     req.user = {
       id: result.rows[0].user_id,
@@ -363,10 +541,13 @@ async function requireAuth(req, res, next) {
       created_at: result.rows[0].created_at
     };
 
+
     next();
 
   } catch (err) {
+
     next(err);
+
   }
 }
 
@@ -375,7 +556,9 @@ async function requireAuth(req, res, next) {
 ========================================================= */
 
 app.get("/", (req, res) => {
+
   res.redirect("/login.html");
+
 });
 
 /* =========================================================
@@ -388,89 +571,153 @@ app.post(
   async (req, res, next) => {
 
     try {
+
       const password =
-        String(req.body?.password || "");
+        String(
+          req.body?.password || ""
+        );
+
 
       const name =
-        String(req.body?.name || "")
-          .trim()
-          .replace(/\s+/g, " ");
+        String(
+          req.body?.name || ""
+        )
+        .trim()
+        .replace(/\s+/g, " ");
+
+
+      /* ---------------------------------------------------
+         كلمة المرور
+      --------------------------------------------------- */
 
       if (password !== SITE_PASSWORD) {
+
         return res.status(401).json({
-          error: "كلمة المرور غير صحيحة."
+          error:
+            "كلمة المرور غير صحيحة."
         });
+
       }
 
-      if (name.length < 2 || name.length > 30) {
+
+      /* ---------------------------------------------------
+         الاسم
+      --------------------------------------------------- */
+
+      if (
+        name.length < 2 ||
+        name.length > 30
+      ) {
+
         return res.status(400).json({
           error:
             "الاسم يجب أن يكون بين حرفين و30 حرفًا."
         });
+
       }
 
-      const userResult = await pool.query(
-        `
-        INSERT INTO users(name)
-        VALUES($1)
 
-        ON CONFLICT(name)
-        DO UPDATE SET name = EXCLUDED.name
+      /* ---------------------------------------------------
+         إنشاء / استرجاع المستخدم
+      --------------------------------------------------- */
 
-        RETURNING id, name, created_at
-        `,
-        [name]
-      );
+      const userResult =
+        await pool.query(
+          `
+          INSERT INTO users(name)
 
-      const user = userResult.rows[0];
+          VALUES($1)
 
-      /* إنشاء Token خاص بهذا التبويب */
+          ON CONFLICT(name)
+          DO UPDATE SET name = EXCLUDED.name
 
-      const token = createToken();
+          RETURNING
+            id,
+            name,
+            created_at
+          `,
+          [name]
+        );
 
-      const tokenHash = hashToken(token);
 
-      /* صلاحية الجلسة 30 يومًا */
+      const user =
+        userResult.rows[0];
+
+
+      /* ---------------------------------------------------
+         Token خاص بهذا التبويب
+      --------------------------------------------------- */
+
+      const token =
+        createToken();
+
+
+      const tokenHash =
+        hashToken(token);
+
+
+      /* ---------------------------------------------------
+         جلسة لمدة 30 يومًا
+      --------------------------------------------------- */
 
       await pool.query(
         `
         INSERT INTO sessions(
           token_hash,
           user_id,
-          expires_at
+          expires_at,
+          created_at
         )
+
         VALUES(
           $1,
           $2,
-          NOW() + INTERVAL '30 days'
+          NOW() + INTERVAL '30 days',
+          NOW()
         )
         `,
-        [tokenHash, user.id]
+        [
+          tokenHash,
+          user.id
+        ]
       );
 
-      /* تنظيف الجلسات القديمة */
 
-      await pool.query(
-        `
+      /* ---------------------------------------------------
+         تنظيف الجلسات القديمة
+      --------------------------------------------------- */
+
+      await pool.query(`
         DELETE FROM sessions
         WHERE expires_at <= NOW()
-        `
-      );
+      `);
 
-      res.json({
+
+      /* ---------------------------------------------------
+         إرسال النتيجة
+      --------------------------------------------------- */
+
+      return res.json({
         ok: true,
         token,
         user
       });
 
     } catch (err) {
+
+      console.error(
+        "❌ /api/enter:",
+        err
+      );
+
       next(err);
+
     }
   }
 );
 
 /* =========================================================
-   معلومات المستخدم الحالي
+   المستخدم الحالي
 ========================================================= */
 
 app.get(
@@ -499,10 +746,12 @@ app.post(
       const header =
         req.headers.authorization || "";
 
+
       const token =
         header.startsWith("Bearer ")
           ? header.slice(7).trim()
           : null;
+
 
       if (token) {
 
@@ -511,23 +760,28 @@ app.post(
           DELETE FROM sessions
           WHERE token_hash = $1
           `,
-          [hashToken(token)]
+          [
+            hashToken(token)
+          ]
         );
 
       }
+
 
       res.json({
         ok: true
       });
 
     } catch (err) {
+
       next(err);
+
     }
   }
 );
 
 /* =========================================================
-   المستخدمون / الأصدقاء
+   المستخدمون
 ========================================================= */
 
 app.get(
@@ -537,25 +791,32 @@ app.get(
 
     try {
 
-      const result = await pool.query(
-        `
-        SELECT
-          id,
-          name,
-          created_at
-        FROM users
-        WHERE id <> $1
-        ORDER BY name ASC
-        `,
-        [req.user.id]
-      );
+      const result =
+        await pool.query(
+          `
+          SELECT
+            id,
+            name,
+            created_at
+
+          FROM users
+
+          WHERE id <> $1
+
+          ORDER BY name ASC
+          `,
+          [req.user.id]
+        );
+
 
       res.json({
         users: result.rows
       });
 
     } catch (err) {
+
       next(err);
+
     }
   }
 );
@@ -571,58 +832,68 @@ app.get(
 
     try {
 
-      const postsResult = await pool.query(
-        `
-        SELECT
-          p.id,
-          p.body,
-          p.image_url,
-          p.created_at,
+      const postsResult =
+        await pool.query(
+          `
+          SELECT
+            p.id,
+            p.body,
+            p.image_url,
+            p.created_at,
 
-          u.id AS author_id,
-          u.name AS author,
+            u.id AS author_id,
+            u.name AS author,
 
-          COUNT(DISTINCT l.user_id)::int
-            AS likes_count,
+            COUNT(DISTINCT l.user_id)::int
+              AS likes_count,
 
-          EXISTS(
-            SELECT 1
-            FROM post_likes pl
-            WHERE pl.post_id = p.id
-              AND pl.user_id = $1
-          ) AS liked
+            EXISTS(
+              SELECT 1
+              FROM post_likes pl
+              WHERE pl.post_id = p.id
+                AND pl.user_id = $1
+            ) AS liked
 
-        FROM posts p
+          FROM posts p
 
-        JOIN users u
-          ON u.id = p.author_id
+          JOIN users u
+            ON u.id = p.author_id
 
-        LEFT JOIN post_likes l
-          ON l.post_id = p.id
+          LEFT JOIN post_likes l
+            ON l.post_id = p.id
 
-        GROUP BY
-          p.id,
-          u.id,
-          u.name
+          GROUP BY
+            p.id,
+            u.id,
+            u.name
 
-        ORDER BY
-          p.created_at DESC
+          ORDER BY
+            p.created_at DESC
 
-        LIMIT 100
-        `,
-        [req.user.id]
-      );
+          LIMIT 100
+          `,
+          [req.user.id]
+        );
 
-      const posts = postsResult.rows;
+
+      const posts =
+        postsResult.rows;
+
 
       if (!posts.length) {
+
         return res.json({
           posts: []
         });
+
       }
 
+
       const postIds =
-        posts.map(post => post.id);
+        posts.map(
+          post => post.id
+        );
+
 
       const commentsResult =
         await pool.query(
@@ -633,38 +904,69 @@ app.get(
             c.body,
             c.created_at,
             u.name AS author
+
           FROM comments c
+
           JOIN users u
             ON u.id = c.author_id
-          WHERE c.post_id = ANY($1::bigint[])
+
+          WHERE c.post_id =
+            ANY($1::bigint[])
+
           ORDER BY c.created_at ASC
           `,
           [postIds]
         );
 
+
       const commentsByPost = {};
 
-      for (const comment of commentsResult.rows) {
 
-        if (!commentsByPost[comment.post_id]) {
-          commentsByPost[comment.post_id] = [];
+      for (
+        const comment
+        of commentsResult.rows
+      ) {
+
+        if (
+          !commentsByPost[
+            comment.post_id
+          ]
+        ) {
+
+          commentsByPost[
+            comment.post_id
+          ] = [];
+
         }
 
-        commentsByPost[comment.post_id].push(
-          comment
-        );
+
+        commentsByPost[
+          comment.post_id
+        ].push(comment);
+
       }
 
+
       res.json({
-        posts: posts.map(post => ({
-          ...post,
-          comments:
-            commentsByPost[post.id] || []
-        }))
+
+        posts:
+          posts.map(post => ({
+
+            ...post,
+
+            comments:
+              commentsByPost[
+                post.id
+              ] || []
+
+          }))
+
       });
 
     } catch (err) {
+
       next(err);
+
     }
   }
 );
@@ -682,7 +984,10 @@ app.post(
     try {
 
       const body =
-        String(req.body?.body || "").trim();
+        String(
+          req.body?.body || ""
+        ).trim();
+
 
       const imageUrl =
         String(
@@ -692,43 +997,63 @@ app.post(
           ""
         ).trim();
 
+
       if (!body && !imageUrl) {
+
         return res.status(400).json({
           error:
             "يرجى كتابة نص أو وضع رابط صورة."
         });
+
       }
 
+
       if (body.length > 5000) {
+
         return res.status(400).json({
           error:
             "المنشور طويل جدًا."
         });
+
       }
 
+
       if (imageUrl.length > 2000) {
+
         return res.status(400).json({
           error:
             "رابط الصورة طويل جدًا."
         });
+
       }
 
-      const result = await pool.query(
-        `
-        INSERT INTO posts(
-          author_id,
-          body,
-          image_url
-        )
-        VALUES($1, $2, $3)
-        RETURNING id, created_at
-        `,
-        [
-          req.user.id,
-          body,
-          imageUrl || null
-        ]
-      );
+
+      const result =
+        await pool.query(
+          `
+          INSERT INTO posts(
+            author_id,
+            body,
+            image_url
+          )
+
+          VALUES(
+            $1,
+            $2,
+            $3
+          )
+
+          RETURNING
+            id,
+            created_at
+          `,
+          [
+            req.user.id,
+            body,
+            imageUrl || null
+          ]
+        );
+
 
       res.json({
         ok: true,
@@ -736,13 +1061,15 @@ app.post(
       });
 
     } catch (err) {
+
       next(err);
+
     }
   }
 );
 
 /* =========================================================
-   الإعجاب / إزالة الإعجاب
+   الإعجاب
 ========================================================= */
 
 app.post(
@@ -756,11 +1083,19 @@ app.post(
       const postId =
         Number(req.params.id);
 
-      if (!Number.isInteger(postId) || postId <= 0) {
+
+      if (
+        !Number.isInteger(postId) ||
+        postId <= 0
+      ) {
+
         return res.status(400).json({
-          error: "معرف المنشور غير صالح."
+          error:
+            "معرف المنشور غير صالح."
         });
+
       }
+
 
       const postCheck =
         await pool.query(
@@ -772,17 +1107,23 @@ app.post(
           [postId]
         );
 
+
       if (!postCheck.rows.length) {
+
         return res.status(404).json({
-          error: "المنشور غير موجود."
+          error:
+            "المنشور غير موجود."
         });
+
       }
+
 
       const existing =
         await pool.query(
           `
           SELECT 1
           FROM post_likes
+
           WHERE post_id = $1
             AND user_id = $2
           `,
@@ -791,12 +1132,14 @@ app.post(
             req.user.id
           ]
         );
+
 
       if (existing.rows.length) {
 
         await pool.query(
           `
           DELETE FROM post_likes
+
           WHERE post_id = $1
             AND user_id = $2
           `,
@@ -806,11 +1149,14 @@ app.post(
           ]
         );
 
+
         return res.json({
           ok: true,
           liked: false
         });
+
       }
+
 
       await pool.query(
         `
@@ -818,7 +1164,12 @@ app.post(
           post_id,
           user_id
         )
-        VALUES($1, $2)
+
+        VALUES(
+          $1,
+          $2
+        )
+
         ON CONFLICT DO NOTHING
         `,
         [
@@ -827,19 +1178,22 @@ app.post(
         ]
       );
 
+
       res.json({
         ok: true,
         liked: true
       });
 
     } catch (err) {
+
       next(err);
+
     }
   }
 );
 
 /* =========================================================
-   إضافة تعليق
+   التعليقات
 ========================================================= */
 
 app.post(
@@ -853,26 +1207,45 @@ app.post(
       const postId =
         Number(req.params.id);
 
-      const body =
-        String(req.body?.body || "").trim();
 
-      if (!Number.isInteger(postId) || postId <= 0) {
+      const body =
+        String(
+          req.body?.body || ""
+        ).trim();
+
+
+      if (
+        !Number.isInteger(postId) ||
+        postId <= 0
+      ) {
+
         return res.status(400).json({
-          error: "معرف المنشور غير صالح."
+          error:
+            "معرف المنشور غير صالح."
         });
+
       }
+
 
       if (!body) {
+
         return res.status(400).json({
-          error: "التعليق فارغ."
+          error:
+            "التعليق فارغ."
         });
+
       }
 
+
       if (body.length > 500) {
+
         return res.status(400).json({
-          error: "التعليق طويل جدًا."
+          error:
+            "التعليق طويل جدًا."
         });
+
       }
+
 
       const post =
         await pool.query(
@@ -884,11 +1257,16 @@ app.post(
           [postId]
         );
 
+
       if (!post.rows.length) {
+
         return res.status(404).json({
-          error: "المنشور غير موجود."
+          error:
+            "المنشور غير موجود."
         });
+
       }
+
 
       await pool.query(
         `
@@ -897,7 +1275,12 @@ app.post(
           author_id,
           body
         )
-        VALUES($1, $2, $3)
+
+        VALUES(
+          $1,
+          $2,
+          $3
+        )
         `,
         [
           postId,
@@ -906,18 +1289,21 @@ app.post(
         ]
       );
 
+
       res.json({
         ok: true
       });
 
     } catch (err) {
+
       next(err);
+
     }
   }
 );
 
 /* =========================================================
-   حذف جميع منشورات المستخدم
+   حذف منشورات المستخدم
 ========================================================= */
 
 app.delete(
@@ -936,12 +1322,15 @@ app.delete(
         [req.user.id]
       );
 
+
       res.json({
         ok: true
       });
 
     } catch (err) {
+
       next(err);
+
     }
   }
 );
@@ -960,36 +1349,56 @@ app.get(
       const otherUserId =
         Number(req.params.userId);
 
+
       if (
         !Number.isInteger(otherUserId) ||
         otherUserId <= 0
       ) {
+
         return res.status(400).json({
-          error: "معرف المستخدم غير صالح."
+          error:
+            "معرف المستخدم غير صالح."
         });
+
       }
 
-      if (otherUserId === req.user.id) {
+
+      if (
+        otherUserId === req.user.id
+      ) {
+
         return res.status(400).json({
-          error: "لا يمكنك مراسلة نفسك."
+          error:
+            "لا يمكنك مراسلة نفسك."
         });
+
       }
+
 
       const userResult =
         await pool.query(
           `
-          SELECT id, name
+          SELECT
+            id,
+            name
+
           FROM users
+
           WHERE id = $1
           `,
           [otherUserId]
         );
 
+
       if (!userResult.rows.length) {
+
         return res.status(404).json({
-          error: "المستخدم غير موجود."
+          error:
+            "المستخدم غير موجود."
         });
+
       }
+
 
       const result =
         await pool.query(
@@ -1013,13 +1422,16 @@ app.get(
               m.sender_id = $1
               AND m.receiver_id = $2
             )
+
             OR
+
             (
               m.sender_id = $2
               AND m.receiver_id = $1
             )
 
-          ORDER BY m.created_at ASC
+          ORDER BY
+            m.created_at ASC
 
           LIMIT 500
           `,
@@ -1029,13 +1441,19 @@ app.get(
           ]
         );
 
+
       res.json({
-        user: userResult.rows[0],
-        messages: result.rows
+        user:
+          userResult.rows[0],
+
+        messages:
+          result.rows
       });
 
     } catch (err) {
+
       next(err);
+
     }
   }
 );
@@ -1055,35 +1473,57 @@ app.post(
       const receiverId =
         Number(req.params.userId);
 
+
       const body =
-        String(req.body?.body || "").trim();
+        String(
+          req.body?.body || ""
+        ).trim();
+
 
       if (
         !Number.isInteger(receiverId) ||
         receiverId <= 0
       ) {
+
         return res.status(400).json({
-          error: "معرف المستخدم غير صالح."
+          error:
+            "معرف المستخدم غير صالح."
         });
+
       }
 
-      if (receiverId === req.user.id) {
+
+      if (
+        receiverId === req.user.id
+      ) {
+
         return res.status(400).json({
-          error: "لا يمكنك إرسال رسالة لنفسك."
+          error:
+            "لا يمكنك إرسال رسالة لنفسك."
         });
+
       }
+
 
       if (!body) {
+
         return res.status(400).json({
-          error: "الرسالة فارغة."
+          error:
+            "الرسالة فارغة."
         });
+
       }
 
+
       if (body.length > 2000) {
+
         return res.status(400).json({
-          error: "الرسالة طويلة جدًا."
+          error:
+            "الرسالة طويلة جدًا."
         });
+
       }
+
 
       const receiver =
         await pool.query(
@@ -1095,11 +1535,16 @@ app.post(
           [receiverId]
         );
 
+
       if (!receiver.rows.length) {
+
         return res.status(404).json({
-          error: "المستخدم غير موجود."
+          error:
+            "المستخدم غير موجود."
         });
+
       }
+
 
       const result =
         await pool.query(
@@ -1109,7 +1554,12 @@ app.post(
             receiver_id,
             body
           )
-          VALUES($1, $2, $3)
+
+          VALUES(
+            $1,
+            $2,
+            $3
+          )
 
           RETURNING
             id,
@@ -1125,13 +1575,17 @@ app.post(
           ]
         );
 
+
       res.json({
         ok: true,
-        message: result.rows[0]
+        message:
+          result.rows[0]
       });
 
     } catch (err) {
+
       next(err);
+
     }
   }
 );
@@ -1156,6 +1610,7 @@ app.use(
       err
     );
 
+
     res.status(500).json({
       error:
         "حدث خطأ في الخادم."
@@ -1168,11 +1623,40 @@ app.use(
    تشغيل الخادم
 ========================================================= */
 
-app.listen(
-  PORT,
-  () => {
-    console.log(
-      `🚀 SocialNet يعمل على المنفذ ${PORT}`
+async function startServer() {
+
+  try {
+
+    /*
+     * ننتظر قاعدة البيانات أولًا
+     * قبل استقبال أي طلب
+     */
+
+    await initDb();
+
+
+    app.listen(
+      PORT,
+      () => {
+
+        console.log(
+          `🚀 SocialNet يعمل على المنفذ ${PORT}`
+        );
+
+      }
     );
+
+  } catch (err) {
+
+    console.error(
+      "❌ تعذر تشغيل الخادم:",
+      err
+    );
+
+    process.exit(1);
+
   }
-);
+}
+
+
+startServer();
