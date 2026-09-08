@@ -1,36 +1,542 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
   <title>الرسائل - SocialNet</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background-color: #f4f6f9; color: #333; }
-    header { background: #fff; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eef0f4; }
-    .logo { font-size: 24px; font-weight: 800; color: #4f46e5; }
-    .nav-bar { display: flex; justify-content: center; gap: 10px; margin: 20px 0; }
-    .nav-item { padding: 10px 18px; border-radius: 10px; background: #fff; color: #555; text-decoration: none; font-size: 14px; font-weight: 500; }
-    .nav-item.active { background: #e0e7ff; color: #4f46e5; font-weight: bold; }
-    .main-container { max-width: 680px; margin: 0 auto; padding: 0 15px; }
-    .card { background: #fff; border-radius: 16px; padding: 30px; text-align: center; color: #666; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
-  </style>
+
+  <link
+    rel="stylesheet"
+    href="/style.css"
+  >
+
 </head>
+
 <body>
-  <header>
-    <div>SocialNet</div>
-    <div class="logo">SocialNet</div>
-  </header>
-  <div class="main-container">
-    <div class="nav-bar">
-      <a href="profile.html" class="nav-item">👤 ملفي</a>
-      <a href="messages.html" class="nav-item active">💬 الرسائل</a>
-      <a href="friends.html" class="nav-item">👥 الأصدقاء</a>
-      <a href="index.html" class="nav-item">🏠 الرئيسية</a>
-    </div>
-    <div class="card">
-      💬 لا يوجد رسائل جديدة حالياً.
-    </div>
+
+<header>
+
+  <div class="welcome">
+
+    <button
+      id="logout"
+      class="small"
+    >
+      خروج
+    </button>
+
+    <span>
+      👋
+      <strong id="username">...</strong>
+    </span>
+
   </div>
+
+  <div class="brand">
+    SocialNet
+  </div>
+
+</header>
+
+
+<nav>
+
+  <button
+    onclick="location.href='/index.html'"
+  >
+    🏠 الرئيسية
+  </button>
+
+  <button
+    onclick="location.href='/profile.html'"
+  >
+    👤 ملفي
+  </button>
+
+  <button
+    onclick="location.href='/friends.html'"
+  >
+    👥 المستخدمون
+  </button>
+
+  <button class="active">
+    💬 الرسائل
+  </button>
+
+</nav>
+
+
+<main>
+
+  <div class="panel">
+
+    <h2>
+      💬 الرسائل
+    </h2>
+
+    <div
+      id="usersList"
+      style="margin-top:15px"
+    >
+      جاري التحميل...
+    </div>
+
+    <div
+      id="chat"
+      class="chat hidden"
+    ></div>
+
+  </div>
+
+</main>
+
+
+<script>
+
+let selectedUser = null;
+
+
+function getToken() {
+
+  return sessionStorage.getItem(
+    "sn_token"
+  );
+
+}
+
+
+async function api(url, options = {}) {
+
+  const t = getToken();
+
+
+  if (!t) {
+
+    location.replace(
+      "/login.html"
+    );
+
+    throw new Error(
+      "لا توجد جلسة."
+    );
+
+  }
+
+
+  const response =
+    await fetch(
+      url,
+      {
+        ...options,
+
+        headers: {
+          ...(options.headers || {}),
+
+          "Authorization":
+            "Bearer " + t,
+
+          ...(options.body
+            ? {
+                "Content-Type":
+                  "application/json"
+              }
+            : {})
+        }
+      }
+    );
+
+
+  if (response.status === 401) {
+
+    sessionStorage.clear();
+
+    location.replace(
+      "/login.html"
+    );
+
+    throw new Error(
+      "انتهت الجلسة."
+    );
+
+  }
+
+
+  const data =
+    await response.json()
+      .catch(() => ({}));
+
+
+  if (!response.ok) {
+
+    throw new Error(
+      data.error ||
+      "حدث خطأ."
+    );
+
+  }
+
+
+  return data;
+
+}
+
+
+async function init() {
+
+  try {
+
+    const me =
+      await api("/api/me");
+
+
+    document.getElementById(
+      "username"
+    ).textContent =
+      me.user.name;
+
+
+    await loadUsers();
+
+
+    const params =
+      new URLSearchParams(
+        location.search
+      );
+
+
+    const userId =
+      Number(
+        params.get("user")
+      );
+
+
+    if (userId) {
+
+      const users =
+        await api("/api/users");
+
+
+      const user =
+        users.users.find(
+          item =>
+            Number(item.id) === userId
+        );
+
+
+      if (user) {
+
+        openChat(
+          user.id,
+          user.name
+        );
+
+      }
+
+    }
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+}
+
+
+async function loadUsers() {
+
+  const data =
+    await api(
+      "/api/users"
+    );
+
+
+  const list =
+    document.getElementById(
+      "usersList"
+    );
+
+
+  if (!data.users.length) {
+
+    list.innerHTML =
+      "<p>لا يوجد مستخدمون آخرون.</p>";
+
+    return;
+
+  }
+
+
+  list.innerHTML =
+    data.users.map(user => `
+
+      <div class="userRow">
+
+        <span>
+          👤 ${escapeHtml(user.name)}
+        </span>
+
+        <button
+          onclick="
+            openChat(
+              ${user.id},
+              ${JSON.stringify(user.name)}
+            )
+          "
+        >
+          فتح المحادثة
+        </button>
+
+      </div>
+
+    `).join("");
+
+}
+
+
+async function openChat(
+  userId,
+  userName
+) {
+
+  selectedUser = {
+    id: userId,
+    name: userName
+  };
+
+
+  const data =
+    await api(
+      `/api/messages/${userId}`
+    );
+
+
+  const chat =
+    document.getElementById(
+      "chat"
+    );
+
+
+  chat.classList.remove(
+    "hidden"
+  );
+
+
+  const messages =
+    data.messages || [];
+
+
+  chat.innerHTML = `
+
+    <h3>
+      💬 محادثة مع
+      ${escapeHtml(userName)}
+    </h3>
+
+    <div id="messagesList">
+
+      ${
+        messages.length
+          ? messages.map(message => `
+
+            <div
+              class="
+                msg
+                ${
+                  Number(message.sender_id) ===
+                  Number(
+                    JSON.parse(
+                      sessionStorage.getItem(
+                        "sn_user"
+                      )
+                    ).id
+                  )
+                    ? "me"
+                    : ""
+                }
+              "
+            >
+
+              <strong>
+                ${escapeHtml(message.sender)}
+              </strong>
+
+              <br>
+
+              ${escapeHtml(message.body)}
+
+              <span class="msg-time">
+                ${formatDate(message.created_at)}
+              </span>
+
+            </div>
+
+          `).join("")
+          : "<p>لا توجد رسائل بعد.</p>"
+      }
+
+    </div>
+
+    <form
+      id="sendForm"
+      class="chatForm"
+    >
+
+      <input
+        id="messageInput"
+        maxlength="2000"
+        placeholder="اكتب رسالة..."
+        required
+      >
+
+      <button>
+        إرسال
+      </button>
+
+    </form>
+
+  `;
+
+
+  document.getElementById(
+    "sendForm"
+  ).onsubmit =
+    async function(event) {
+
+      event.preventDefault();
+
+      await sendMessage();
+
+    };
+
+}
+
+
+async function sendMessage() {
+
+  if (!selectedUser) {
+    return;
+  }
+
+
+  const input =
+    document.getElementById(
+      "messageInput"
+    );
+
+
+  const body =
+    input.value.trim();
+
+
+  if (!body) {
+    return;
+  }
+
+
+  try {
+
+    await api(
+      `/api/messages/${selectedUser.id}`,
+      {
+        method: "POST",
+
+        body: JSON.stringify({
+          body
+        })
+      }
+    );
+
+
+    input.value = "";
+
+
+    await openChat(
+      selectedUser.id,
+      selectedUser.name
+    );
+
+  } catch (error) {
+
+    alert(error.message);
+
+  }
+
+}
+
+
+function escapeHtml(value) {
+
+  return String(
+    value ?? ""
+  ).replace(
+    /[&<>"']/g,
+    c => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[c])
+  );
+
+}
+
+
+function formatDate(value) {
+
+  return new Date(value)
+    .toLocaleString(
+      "ar-TN"
+    );
+
+}
+
+
+document.getElementById(
+  "logout"
+).onclick = async function() {
+
+  const t =
+    getToken();
+
+
+  if (t) {
+
+    await fetch(
+      "/api/logout",
+      {
+        method: "POST",
+
+        headers: {
+          "Authorization":
+            "Bearer " + t
+        }
+      }
+    );
+
+  }
+
+
+  sessionStorage.clear();
+
+  location.replace(
+    "/login.html"
+  );
+
+};
+
+
+init();
+
+</script>
+
 </body>
 </html>
