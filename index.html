@@ -1,226 +1,204 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SocialNet</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background-color: #f4f6f9; color: #333; }
 
-    header { background: #fff; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eef0f4; }
-    .logo { font-size: 24px; font-weight: 800; color: #4f46e5; }
-    .user-info { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: bold; }
-    .btn-logout { background-color: #eef2ff; color: #4f46e5; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; }
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
-    .nav-bar { display: flex; justify-content: center; gap: 10px; margin: 20px 0; }
-    .nav-item { padding: 10px 18px; border-radius: 10px; background: #fff; color: #555; text-decoration: none; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
-    .nav-item.active { background: #e0e7ff; color: #4f46e5; font-weight: bold; }
+  <title>الرئيسية - SocialNet</title>
 
-    .main-container { max-width: 680px; margin: 0 auto; padding: 0 15px 50px; }
+  <link
+    rel="stylesheet"
+    href="/style.css"
+  >
 
-    .card { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
-    textarea { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; font-size: 14px; outline: none; resize: none; min-height: 90px; margin-bottom: 12px; }
-    input[type="text"] { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 14px; outline: none; margin-bottom: 12px; }
-
-    .btn-primary { width: 100%; background: #4f46e5; color: white; border: none; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: bold; cursor: pointer; }
-    .btn-primary:hover { background: #4338ca; }
-    .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; }
-
-    .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .post-author-box { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 15px; }
-    .post-time { font-size: 12px; color: #9ca3af; }
-    .post-content { font-size: 15px; line-height: 1.5; color: #1f2937; margin-bottom: 12px; }
-    .post-img { max-width: 100%; border-radius: 10px; margin-bottom: 12px; }
-    .post-divider { border-top: 1px solid #f3f4f6; margin: 12px 0; }
-
-    .like-box { display: flex; justify-content: flex-end; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 12px; }
-    .btn-like { background: none; border: none; cursor: pointer; font-size: 16px; }
-
-    .comment-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-    .comment-item { background: #f9fafb; border-radius: 8px; padding: 8px 12px; font-size: 13px; }
-    .comment-user { font-weight: bold; color: #374151; margin-bottom: 2px; }
-    
-    .comment-form { display: flex; gap: 8px; }
-    .comment-input { flex: 1; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; margin-bottom: 0 !important; }
-    .btn-comment { background: #4f46e5; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: bold; cursor: pointer; }
-  </style>
 </head>
+
 <body>
 
-  <header>
-    <div class="user-info">
-      <button onclick="logout()" class="btn-logout">خروج</button>
-      <span>👋 مرحبًا، <strong id="usernameDisplay">...</strong></span>
-    </div>
-    <div class="logo">SocialNet</div>
-  </header>
+<header>
 
-  <div class="main-container">
-    <div class="nav-bar">
-      <a href="profile.html" class="nav-item">👤 ملفي</a>
-      <a href="messages.html" class="nav-item">💬 الرسائل</a>
-      <a href="friends.html" class="nav-item">👥 الأصدقاء</a>
-      <a href="index.html" class="nav-item active">🏠 الرئيسية</a>
-    </div>
+  <div class="welcome">
 
-    <div class="card">
-      <textarea id="postBody" placeholder="بماذا تفكر؟"></textarea>
-      <input type="text" id="postImage" placeholder="رابط صورة (اختياري)">
-      <button onclick="createPost(event)" class="btn-primary" id="btnSubmit">نشر</button>
+    <button
+      id="logoutButton"
+      class="small"
+    >
+      خروج
+    </button>
+
+    <span>
+      👋 مرحبًا،
+      <strong id="usernameDisplay">...</strong>
+    </span>
+
+  </div>
+
+  <div class="brand">
+    SocialNet
+  </div>
+
+</header>
+
+
+<nav>
+
+  <button
+    data-view="homeView"
+    class="active"
+  >
+    🏠 الرئيسية
+  </button>
+
+  <button
+    data-view="profileView"
+  >
+    👤 ملفي
+  </button>
+
+  <button
+    data-view="friendsView"
+  >
+    👥 المستخدمون
+  </button>
+
+  <button
+    data-view="messagesView"
+  >
+    💬 الرسائل
+  </button>
+
+</nav>
+
+
+<main>
+
+  <!-- الرئيسية -->
+
+  <section id="homeView" class="view">
+
+    <div class="composer">
+
+      <textarea
+        id="postBody"
+        maxlength="5000"
+        placeholder="بماذا تفكر؟"
+      ></textarea>
+
+      <input
+        id="postImage"
+        type="text"
+        maxlength="2000"
+        placeholder="رابط صورة (اختياري)"
+      >
+
+      <button id="publishButton">
+        نشر
+      </button>
+
     </div>
 
     <div id="postsFeed"></div>
-  </div>
 
-  <script>
-    async function init() {
-      const res = await fetch('/api/me?t=' + Date.now());
-      if (!res.ok) { 
-        location.href = '/login.html'; 
-        return; 
-      }
-      const data = await res.json();
-      document.getElementById('usernameDisplay').innerText = data.user.name;
-      loadPosts();
-    }
+  </section>
 
-    async function logout() {
-      await fetch('/api/logout', { method: 'POST' });
-      location.href = '/login.html';
-    }
 
-    async function loadPosts() {
-      try {
-        const res = await fetch('/api/posts?t=' + Date.now());
-        if (!res.ok) {
-          if (res.status === 401) location.href = '/login.html';
-          return;
-        }
-        const data = await res.json();
-        const feed = document.getElementById('postsFeed');
-        feed.innerHTML = '';
+  <!-- الملف الشخصي -->
 
-        data.posts.forEach(post => {
-          let imgHtml = '';
-          if (post.file_url) {
-            imgHtml = `<img src="${escape(post.file_url)}" class="post-img" />`;
-          }
+  <section
+    id="profileView"
+    class="view hidden"
+  >
 
-          let commentsHtml = (post.comments || []).map(c => `
-            <div class="comment-item">
-              <div class="comment-user">${escape(c.author)}</div>
-              <div>${escape(c.body)}</div>
-            </div>
-          `).join('');
+    <div class="panel profile">
 
-          const card = document.createElement('div');
-          card.className = 'card';
-          card.innerHTML = `
-            <div class="post-header">
-              <span class="post-time">${new Date(post.created_at).toLocaleString('ar')}</span>
-              <div class="post-author-box">
-                <span>${escape(post.author)}</span>
-                👤
-              </div>
-            </div>
-            <div class="post-content">${escape(post.body)}</div>
-            ${imgHtml}
-            <div class="post-divider"></div>
+      <div class="avatar">
+        👤
+      </div>
 
-            <div class="like-box">
-              <span>${post.likes_count || 0}</span>
-              <button onclick="likePost(${post.id})" class="btn-like">❤️</button>
-            </div>
-            
-            <div class="comment-list">${commentsHtml}</div>
-            
-            <div class="comment-form">
-              <button onclick="sendComment(${post.id})" class="btn-comment">إرسال</button>
-              <input type="text" id="comm-input-${post.id}" class="comment-input" placeholder="اكتب تعليقًا..." />
-            </div>
-          `;
-          feed.appendChild(card);
-        });
-      } catch (e) {
-        console.error("Failed to load posts", e);
-      }
-    }
+      <h2 id="profileName">
+        ...
+      </h2>
 
-    async function createPost(event) {
-      if (event) event.preventDefault();
+      <p>
+        مرحبًا بك في ملفك الشخصي.
+      </p>
 
-      const bodyInput = document.getElementById('postBody');
-      const imageInput = document.getElementById('postImage');
-      const btnSubmit = document.getElementById('btnSubmit');
+      <button
+        id="deleteMyPosts"
+        class="small"
+      >
+        حذف جميع منشوراتي
+      </button>
 
-      const body = bodyInput.value.trim();
-      const imageUrl = imageInput.value.trim();
+    </div>
 
-      if (!body && !imageUrl) {
-        alert("يرجى كتابة نص أو وضع رابط صورة قبل النشر.");
-        return;
-      }
+  </section>
 
-      btnSubmit.disabled = true;
-      btnSubmit.innerText = "جاري النشر...";
 
-      try {
-        const res = await fetch('/api/posts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ body, imageUrl, file_url: imageUrl })
-        });
+  <!-- المستخدمون -->
 
-        if (res.ok) {
-          bodyInput.value = '';
-          imageInput.value = '';
-          await loadPosts();
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          if (res.status === 401) {
-            alert("يرجى تسجيل الدخول أولاً للنشر.");
-            location.href = '/login.html';
-          } else {
-            alert(errData.error || "حدث خطأ أثناء النشر.");
-          }
-        }
-      } catch (err) {
-        console.error("Error creating post:", err);
-        alert("تعذر الاتصال بالخادم.");
-      } finally {
-        btnSubmit.disabled = false;
-        btnSubmit.innerText = "نشر";
-      }
-    }
+  <section
+    id="friendsView"
+    class="view hidden"
+  >
 
-    async function likePost(postId) {
-      const res = await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
-      if (res.ok) await loadPosts();
-    }
+    <div class="panel">
 
-    async function sendComment(postId) {
-      const input = document.getElementById(`comm-input-${postId}`);
-      const body = input.value.trim();
-      if (!body) return;
+      <h2>
+        👥 المستخدمون
+      </h2>
 
-      const res = await fetch(`/api/posts/${postId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body })
-      });
+      <div
+        id="friendsList"
+        style="margin-top:15px"
+      ></div>
 
-      if (res.ok) {
-        input.value = '';
-        await loadPosts();
-      }
-    }
+    </div>
 
-    function escape(str) {
-      return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
+  </section>
 
-    init();
-  </script>
+
+  <!-- الرسائل -->
+
+  <section
+    id="messagesView"
+    class="view hidden"
+  >
+
+    <div class="panel">
+
+      <h2>
+        💬 الرسائل
+      </h2>
+
+      <p>
+        اختر مستخدمًا لبدء المحادثة.
+      </p>
+
+      <div
+        id="messageUsers"
+        style="margin-top:15px"
+      ></div>
+
+      <div
+        id="chat"
+        class="chat hidden"
+      ></div>
+
+    </div>
+
+  </section>
+
+</main>
+
+
+<script src="/app.js"></script>
+
 </body>
 </html>
