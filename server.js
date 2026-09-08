@@ -66,7 +66,6 @@ function sign(value) {
   return crypto.createHmac("sha256", COOKIE_SECRET).update(value).digest("base64url");
 }
 
-// إنشاء جلسة مؤقتة (Session Cookie) تنتهي بمجرد إغلاق المتصفح
 function setAuthCookie(res, userId) {
   const value = String(userId);
   res.cookie("sn_auth", `${value}.${sign(value)}`, {
@@ -74,7 +73,6 @@ function setAuthCookie(res, userId) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/"
-    // بدون maxAge لتنتهي الجلسة تلقائياً عند إغلاق المتصفح
   });
 }
 
@@ -103,8 +101,9 @@ async function requireAuth(req, res, next) {
   } catch (e) { next(e); }
 }
 
-// عند دخول الموقع الرئيسي، التوجيه دائماً لصفحة الدخول
+// مسح الجلسة وتوجيه المستخدم لصفحة الدخول فور فتح الصفحة الرئيسية /
 app.get("/", (req, res) => {
+  res.clearCookie("sn_auth", { path: "/" });
   res.redirect("/login.html");
 });
 
@@ -114,8 +113,8 @@ app.post("/api/enter", authLimiter, async (req, res, next) => {
     if (password !== SITE_PASSWORD) return res.status(401).json({ error: "كلمة المرور غير صحيحة." });
     const clean = String(name || "").trim().replace(/\s+/g, " ");
     if (clean.length < 2 || clean.length > 30) return res.status(400).json({ error: "الاسم يجب أن يكون بين حرفين و30 حرفًا." });
-    
-    // البحث عن الاسم أو إنشاؤه إذا كان جديداً (مع الحفاظ على البيانات القديمة بنفس الاسم)
+
+    // ربط الحساب بالاسم المسجل سابقاً في قاعدة البيانات للحفاظ على البروفايل والرسائل والمنشورات القديمة
     const { rows } = await pool.query(
       `INSERT INTO users(name) VALUES($1) ON CONFLICT(name) DO UPDATE SET name=EXCLUDED.name RETURNING id,name`,
       [clean]
