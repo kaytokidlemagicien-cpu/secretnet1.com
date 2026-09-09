@@ -5,7 +5,7 @@ const f = document.getElementById("loginForm"),
       b = document.getElementById("loginButton"),
       e = document.getElementById("loginError");
 
-// التحقق من وجود الجلسة عند فتح التطبيق أو الموقع
+// التحقق من وجود الجلسة عند فتح الصفحة (استبدال sessionStorage بـ localStorage)
 (async () => {
   const t = localStorage.getItem("sn_token");
   if (!t) return;
@@ -19,7 +19,7 @@ const f = document.getElementById("loginForm"),
   localStorage.clear();
 })();
 
-// عند تسجيل الدخول
+// عند التحديث وتسجيل الدخول
 f.addEventListener("submit", async ev => {
   ev.preventDefault();
   e.textContent = "";
@@ -43,7 +43,7 @@ f.addEventListener("submit", async ev => {
     
     if (!r.ok) throw new Error(d.error || "Échec de la connexion.");
     
-    // حفظ التوكن والبيانات في localStorage لضمان استمرار الدخول في الـ APK والموقع
+    // حفظ التوكن والبيانات دائمًا في localStorage لعمل التطبيق
     localStorage.setItem("sn_token", d.token);
     localStorage.setItem("sn_user", JSON.stringify(d.user));
     
