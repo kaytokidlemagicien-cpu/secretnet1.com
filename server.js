@@ -4,6 +4,7 @@ const crypto = require("crypto");
 
 const express = require("express");
 const helmet = require("helmet");
+const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const multer = require("multer");
 const { Pool } = require("pg");
@@ -95,6 +96,29 @@ try {
 
 const app =
     express();
+
+app.use(
+    cors({
+        origin: true,
+        methods: [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "OPTIONS"
+        ],
+        allowedHeaders: [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "x-user-id",
+            "x-admin-token",
+            "x-admin-password"
+        ],
+        credentials: true,
+        optionsSuccessStatus: 204
+    })
+);
 
 const PORT =
     Number(
@@ -271,22 +295,9 @@ app.set(
 
 app.use(
     helmet({
-        // السماح بعرض صور Cloudinary والصور المرفوعة من مصادر HTTPS.
-        // بدون هذا الإعداد قد يمنع Helmet المتصفح من تحميل صور publications
-        // وصور الحساب رغم أن رابط Cloudinary صحيح.
-        contentSecurityPolicy: {
-            directives: {
-                "img-src": [
-                    "'self'",
-                    "data:",
-                    "blob:",
-                    "https:"
-                ]
-            }
-        },
+        contentSecurityPolicy: false,
         crossOriginResourcePolicy: {
-            policy:
-                "cross-origin"
+            policy: "cross-origin"
         }
     })
 );
@@ -590,6 +601,7 @@ async function initDb() {
         /* =================================================
            FRIENDS
         ================================================= */
+
         await pool.query(`
             CREATE TABLE IF NOT EXISTS friendships (
                 id BIGSERIAL PRIMARY KEY,
@@ -601,18 +613,12 @@ async function initDb() {
             );
         `);
 
-        // ترقية جدول friendships القديم إن كان موجودًا من نسخة سابقة.
-        // CREATE TABLE IF NOT EXISTS لا يضيف أعمدة إلى جدول موجود، لذلك نستخدم
-        // ALTER TABLE IF NOT EXISTS قبل إنشاء الفهارس والقيود الجديدة.
         await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS requester_id BIGINT`);
         await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS addressee_id BIGINT`);
         await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending'`);
         await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`);
         await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
 
-        // توافق شامل مع جداول friendships القديمة.
-        // بعض النسخ القديمة كانت تستخدم: sender_id/receiver_id أو user1_id/user2_id
-        // أو user_id/friend_id. ننقل البيانات القديمة إلى requester_id/addressee_id.
         await pool.query(`
             DO $$
             BEGIN
@@ -640,8 +646,6 @@ async function initDb() {
                     WHERE requester_id IS NULL OR addressee_id IS NULL;
                 END IF;
 
-                -- الأعمدة القديمة user_id/friend_id قد تكون NOT NULL،
-                -- لذلك نجعلها اختيارية بعد نقل البيانات حتى لا تمنع INSERT الجديد.
                 IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='friendships' AND column_name='user_id') THEN
                     ALTER TABLE friendships ALTER COLUMN user_id DROP NOT NULL;
                 END IF;
@@ -657,21 +661,24 @@ async function initDb() {
             END $$;
         `);
 
-        // حذف الصفوف القديمة غير الصالحة فقط؛ لا نحذف الصداقات الصحيحة.
         await pool.query(`DELETE FROM friendships WHERE requester_id IS NULL OR addressee_id IS NULL OR requester_id = addressee_id`);
         await pool.query(`ALTER TABLE friendships ALTER COLUMN requester_id SET NOT NULL`);
         await pool.query(`ALTER TABLE friendships ALTER COLUMN addressee_id SET NOT NULL`);
         await pool.query(`ALTER TABLE friendships ALTER COLUMN status SET DEFAULT 'pending'`);
+
         await pool.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS friendships_pair_unique
             ON friendships (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id));
         `);
+
         await pool.query(`
             CREATE INDEX IF NOT EXISTS friendships_requester_idx ON friendships(requester_id, status);
         `);
+
         await pool.query(`
             CREATE INDEX IF NOT EXISTS friendships_addressee_idx ON friendships(addressee_id, status);
         `);
+
 
         /* =================================================
            INDEXES
@@ -718,9 +725,11 @@ async function initDb() {
             );
         `);
 
+
         /* =================================================
            GROUP CHATS
         ================================================= */
+
         await pool.query(`
             CREATE TABLE IF NOT EXISTS group_chats (
                 id BIGSERIAL PRIMARY KEY,
@@ -729,6 +738,7 @@ async function initDb() {
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         `);
+
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS group_members (
@@ -740,6 +750,7 @@ async function initDb() {
             );
         `);
 
+
         await pool.query(`
             CREATE TABLE IF NOT EXISTS group_messages (
                 id BIGSERIAL PRIMARY KEY,
@@ -750,9 +761,10 @@ async function initDb() {
             );
         `);
 
-        await pool.query(`CREATE INDEX IF NOT EXISTS group_members_user_idx ON group_members(user_id, group_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS group_messages_group_idx ON group_messages(group_id, created_at);`);
 
+        await pool.query(`CREATE INDEX IF NOT EXISTS group_members_user_idx ON group_members(user_id, group_id);`);
+
+        await pool.query(`CREATE INDEX IF NOT EXISTS group_messages_group_idx ON group_messages(group_id, created_at);`);
 
 
         await pool.query(`
@@ -915,6 +927,7 @@ async function requireAuth(
             return res.status(403).json({ error: "Ce compte est bloqué." });
         }
 
+
         req.user = {
 
             id:
@@ -975,20 +988,27 @@ function requireAdmin(req, res, next) {
     if (!isAdminUser(req)) {
         return res.status(403).json({ error: "Accès administrateur refusé pour ce compte." });
     }
+
     if (!adminPasswordValid(req)) {
         return res.status(401).json({ error: "Mot de passe Admin incorrect ou absent." });
     }
+
     if (!adminIpAllowed(req)) {
         return res.status(403).json({ error: "Ce panneau Admin n’est pas autorisé depuis cet appareil/réseau." });
     }
+
     next();
 }
+
 
 app.get("/api/admin/check", requireAuth, requireAdmin, async (req, res, next) => {
     try {
         res.json({ ok: true, admin: { id: req.user.id, name: req.user.name } });
-    } catch (err) { next(err); }
+    } catch (err) {
+        next(err);
+    }
 });
+
 
 app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res, next) => {
     try {
@@ -999,6 +1019,7 @@ app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res, next) =>
             pool.query("SELECT COUNT(*)::int AS count FROM messages"),
             pool.query("SELECT COUNT(*)::int AS count FROM group_chats")
         ]);
+
         res.json({
             users: users.rows[0].count,
             posts: posts.rows[0].count,
@@ -1006,8 +1027,12 @@ app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res, next) =>
             messages: messages.rows[0].count,
             groups: groups.rows[0].count
         });
-    } catch (err) { next(err); }
+
+    } catch (err) {
+        next(err);
+    }
 });
+
 
 app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res, next) => {
     try {
@@ -1016,68 +1041,198 @@ app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res, next) =>
             FROM users
             ORDER BY created_at DESC
         `);
-        res.json({ users: result.rows });
-    } catch (err) { next(err); }
+
+        res.json({
+            users: result.rows
+        });
+
+    } catch (err) {
+        next(err);
+    }
 });
+
 
 app.post("/api/admin/users/:userId/ban", requireAuth, requireAdmin, async (req, res, next) => {
     try {
         const id = Number(req.params.userId);
-        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Utilisateur invalide." });
-        if (id === Number(req.user.id)) return res.status(400).json({ error: "Vous ne pouvez pas bloquer votre propre compte Admin." });
-        const r = await pool.query("UPDATE users SET is_banned=TRUE WHERE id=$1 RETURNING id,name,is_banned", [id]);
-        if (!r.rows.length) return res.status(404).json({ error: "Utilisateur introuvable." });
-        await pool.query("DELETE FROM sessions WHERE user_id=$1", [id]);
-        res.json({ ok: true, user: r.rows[0] });
-    } catch (err) { next(err); }
+
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({
+                error: "Utilisateur invalide."
+            });
+        }
+
+        if (id === Number(req.user.id)) {
+            return res.status(400).json({
+                error: "Vous ne pouvez pas bloquer votre propre compte Admin."
+            });
+        }
+
+        const r = await pool.query(
+            "UPDATE users SET is_banned=TRUE WHERE id=$1 RETURNING id,name,is_banned",
+            [id]
+        );
+
+        if (!r.rows.length) {
+            return res.status(404).json({
+                error: "Utilisateur introuvable."
+            });
+        }
+
+        await pool.query(
+            "DELETE FROM sessions WHERE user_id=$1",
+            [id]
+        );
+
+        res.json({
+            ok: true,
+            user: r.rows[0]
+        });
+
+    } catch (err) {
+        next(err);
+    }
 });
+
 
 app.post("/api/admin/users/:userId/unban", requireAuth, requireAdmin, async (req, res, next) => {
     try {
         const id = Number(req.params.userId);
-        const r = await pool.query("UPDATE users SET is_banned=FALSE WHERE id=$1 RETURNING id,name,is_banned", [id]);
-        if (!r.rows.length) return res.status(404).json({ error: "Utilisateur introuvable." });
-        res.json({ ok: true, user: r.rows[0] });
-    } catch (err) { next(err); }
+
+        const r = await pool.query(
+            "UPDATE users SET is_banned=FALSE WHERE id=$1 RETURNING id,name,is_banned",
+            [id]
+        );
+
+        if (!r.rows.length) {
+            return res.status(404).json({
+                error: "Utilisateur introuvable."
+            });
+        }
+
+        res.json({
+            ok: true,
+            user: r.rows[0]
+        });
+
+    } catch (err) {
+        next(err);
+    }
 });
+
 
 app.delete("/api/admin/users/:userId", requireAuth, requireAdmin, async (req, res, next) => {
     try {
         const id = Number(req.params.userId);
-        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Utilisateur invalide." });
-        if (id === Number(req.user.id)) return res.status(400).json({ error: "Vous ne pouvez pas supprimer votre propre compte Admin." });
-        const r = await pool.query("DELETE FROM users WHERE id=$1 RETURNING id,name", [id]);
-        if (!r.rows.length) return res.status(404).json({ error: "Utilisateur introuvable." });
-        res.json({ ok: true, deleted: r.rows[0] });
-    } catch (err) { next(err); }
+
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({
+                error: "Utilisateur invalide."
+            });
+        }
+
+        if (id === Number(req.user.id)) {
+            return res.status(400).json({
+                error: "Vous ne pouvez pas supprimer votre propre compte Admin."
+            });
+        }
+
+        const r = await pool.query(
+            "DELETE FROM users WHERE id=$1 RETURNING id,name",
+            [id]
+        );
+
+        if (!r.rows.length) {
+            return res.status(404).json({
+                error: "Utilisateur introuvable."
+            });
+        }
+
+        res.json({
+            ok: true,
+            deleted: r.rows[0]
+        });
+
+    } catch (err) {
+        next(err);
+    }
 });
+
 
 app.delete("/api/admin/posts/:postId", requireAuth, requireAdmin, async (req, res, next) => {
     try {
         const id = Number(req.params.postId);
-        const r = await pool.query("DELETE FROM posts WHERE id=$1 RETURNING id", [id]);
-        if (!r.rows.length) return res.status(404).json({ error: "Publication introuvable." });
-        res.json({ ok: true });
-    } catch (err) { next(err); }
+
+        const r = await pool.query(
+            "DELETE FROM posts WHERE id=$1 RETURNING id",
+            [id]
+        );
+
+        if (!r.rows.length) {
+            return res.status(404).json({
+                error: "Publication introuvable."
+            });
+        }
+
+        res.json({
+            ok: true
+        });
+
+    } catch (err) {
+        next(err);
+    }
 });
+
 
 app.delete("/api/admin/comments/:commentId", requireAuth, requireAdmin, async (req, res, next) => {
     try {
         const id = Number(req.params.commentId);
-        const r = await pool.query("DELETE FROM comments WHERE id=$1 RETURNING id", [id]);
-        if (!r.rows.length) return res.status(404).json({ error: "Commentaire introuvable." });
-        res.json({ ok: true });
-    } catch (err) { next(err); }
+
+        const r = await pool.query(
+            "DELETE FROM comments WHERE id=$1 RETURNING id",
+            [id]
+        );
+
+        if (!r.rows.length) {
+            return res.status(404).json({
+                error: "Commentaire introuvable."
+            });
+        }
+
+        res.json({
+            ok: true
+        });
+
+    } catch (err) {
+        next(err);
+    }
 });
+
 
 app.delete("/api/admin/groups/:groupId", requireAuth, requireAdmin, async (req, res, next) => {
     try {
         const id = Number(req.params.groupId);
-        const r = await pool.query("DELETE FROM group_chats WHERE id=$1 RETURNING id", [id]);
-        if (!r.rows.length) return res.status(404).json({ error: "Groupe introuvable." });
-        res.json({ ok: true });
-    } catch (err) { next(err); }
+
+        const r = await pool.query(
+            "DELETE FROM group_chats WHERE id=$1 RETURNING id",
+            [id]
+        );
+
+        if (!r.rows.length) {
+            return res.status(404).json({
+                error: "Groupe introuvable."
+            });
+        }
+
+        res.json({
+            ok: true
+        });
+
+    } catch (err) {
+        next(err);
+    }
 });
+
 
 /* =========================================================
    الصفحة Accueil
@@ -1430,14 +1585,6 @@ app.post(
             }
 
 
-            /*
-             مهم جدًا:
-
-             لا نستخدم اسم الملف الذي اختاره المستخدم.
-
-             يتم إنشاء اسم عشوائي جديد.
-            */
-
             const publicId =
                 crypto
                     .randomBytes(16)
@@ -1557,39 +1704,149 @@ app.post(
     requireAuth,
     upload.single("image"),
     async (req, res, next) => {
+
         try {
-            let imageUrl = String(req.body?.imageUrl || req.body?.image_url || "").trim();
+
+            let imageUrl =
+                String(
+                    req.body?.imageUrl ||
+                    req.body?.image_url ||
+                    ""
+                ).trim();
+
 
             if (req.file) {
-                if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-                    return res.status(500).json({ error: "Le stockage des images n’est pas configuré. Ajoutez les variables Cloudinary à Render." });
+
+                if (
+                    !CLOUDINARY_CLOUD_NAME ||
+                    !CLOUDINARY_API_KEY ||
+                    !CLOUDINARY_API_SECRET
+                ) {
+
+                    return res
+                        .status(500)
+                        .json({
+                            error:
+                                "Le stockage des images n’est pas configuré. Ajoutez les variables Cloudinary à Render."
+                        });
+
                 }
-                const publicId = crypto.randomBytes(16).toString("hex");
-                const result = await new Promise((resolve, reject) => {
-                    const stream = cloudinary.uploader.upload_stream({
-                        folder: "socialnet/avatars",
-                        public_id: publicId,
-                        resource_type: "image",
-                        overwrite: false,
-                        transformation: [{ quality: "auto" }, { fetch_format: "auto" }]
-                    }, (error, result) => error ? reject(error) : resolve(result));
-                    stream.end(req.file.buffer);
-                });
-                imageUrl = result.secure_url;
+
+
+                const publicId =
+                    crypto
+                        .randomBytes(16)
+                        .toString("hex");
+
+
+                const result =
+                    await new Promise(
+                        (
+                            resolve,
+                            reject
+                        ) => {
+
+                            const stream =
+                                cloudinary.uploader.upload_stream(
+                                    {
+                                        folder:
+                                            "socialnet/avatars",
+
+                                        public_id:
+                                            publicId,
+
+                                        resource_type:
+                                            "image",
+
+                                        overwrite:
+                                            false,
+
+                                        transformation: [
+                                            {
+                                                quality:
+                                                    "auto"
+                                            },
+                                            {
+                                                fetch_format:
+                                                    "auto"
+                                            }
+                                        ]
+                                    },
+
+                                    (
+                                        error,
+                                        result
+                                    ) =>
+                                        error
+                                            ? reject(error)
+                                            : resolve(result)
+                                );
+
+
+                            stream.end(
+                                req.file.buffer
+                            );
+
+                        }
+                    );
+
+
+                imageUrl =
+                    result.secure_url;
+
             }
 
-            if (!imageUrl || imageUrl.length > 2000) {
-                return res.status(400).json({ error: "Choisissez une image valide." });
+
+            if (
+                !imageUrl ||
+                imageUrl.length > 2000
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "Choisissez une image valide."
+                    });
+
             }
 
-            const result = await pool.query(`
-                UPDATE users SET avatar_url = $1
-                WHERE id = $2
-                RETURNING id, name, avatar_url, created_at
-            `, [imageUrl, req.user.id]);
 
-            res.json({ ok: true, user: result.rows[0] });
-        } catch (err) { next(err); }
+            const result =
+                await pool.query(
+                    `
+                    UPDATE users
+                    SET avatar_url = $1
+
+                    WHERE id = $2
+
+                    RETURNING
+                        id,
+                        name,
+                        avatar_url,
+                        created_at
+                    `,
+                    [
+                        imageUrl,
+                        req.user.id
+                    ]
+                );
+
+
+            res.json({
+                ok:
+                    true,
+
+                user:
+                    result.rows[0]
+            });
+
+        } catch (err) {
+
+            next(err);
+
+        }
+
     }
 );
 
@@ -2589,16 +2846,34 @@ app.delete(
 );
 
 
-
 async function areFriends(userA, userB) {
-    const r = await pool.query(`
-        SELECT 1 FROM friendships
-        WHERE status='accepted'
-          AND ((requester_id=$1 AND addressee_id=$2) OR (requester_id=$2 AND addressee_id=$1))
-        LIMIT 1
-    `, [userA, userB]);
+
+    const r =
+        await pool.query(
+            `
+            SELECT 1 FROM friendships
+
+            WHERE status='accepted'
+
+              AND (
+                    (requester_id=$1 AND addressee_id=$2)
+
+                    OR
+
+                    (requester_id=$2 AND addressee_id=$1)
+                  )
+
+            LIMIT 1
+            `,
+            [
+                userA,
+                userB
+            ]
+        );
+
     return r.rows.length > 0;
 }
+
 
 /* =========================================================
    Messages
@@ -2656,8 +2931,21 @@ app.get(
 
             }
 
-            if (!(await areFriends(req.user.id, otherUserId))) {
-                return res.status(403).json({ error: "Vous pouvez uniquement envoyer des messages à vos amis." });
+
+            if (
+                !(await areFriends(
+                    req.user.id,
+                    otherUserId
+                ))
+            ) {
+
+                return res
+                    .status(403)
+                    .json({
+                        error:
+                            "Vous pouvez uniquement envoyer des messages à vos amis."
+                    });
+
             }
 
 
@@ -2943,303 +3231,1301 @@ app.post(
 );
 
 
-
 /* =========================================================
    نظام Amis
 ========================================================= */
 
-app.get("/api/friends", requireAuth, async (req, res, next) => {
-    try {
-        const result = await pool.query(`
-            SELECT u.id, u.name, u.avatar_url, u.created_at
-            FROM users u
-            JOIN friendships f ON (
-                (f.requester_id = $1 AND f.addressee_id = u.id) OR
-                (f.addressee_id = $1 AND f.requester_id = u.id)
-            )
-            WHERE f.status = 'accepted'
-            ORDER BY u.name ASC
-        `, [req.user.id]);
-        res.json({ friends: result.rows });
-    } catch (err) { next(err); }
-});
+app.get(
+    "/api/friends",
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
 
-app.get("/api/friends/requests", requireAuth, async (req, res, next) => {
-    try {
-        const result = await pool.query(`
-            SELECT f.id, f.requester_id, f.created_at,
-                   u.name, u.avatar_url
-            FROM friendships f JOIN users u ON u.id = f.requester_id
-            WHERE f.addressee_id = $1 AND f.status = 'pending'
-            ORDER BY f.created_at DESC
-        `, [req.user.id]);
-        const sent = await pool.query(`
-            SELECT f.id, f.addressee_id, f.created_at,
-                   u.name, u.avatar_url
-            FROM friendships f JOIN users u ON u.id = f.addressee_id
-            WHERE f.requester_id = $1 AND f.status = 'pending'
-            ORDER BY f.created_at DESC
-        `, [req.user.id]);
-        res.json({ incoming: result.rows, outgoing: sent.rows });
-    } catch (err) { next(err); }
-});
+        try {
 
-app.post("/api/friends/request/:userId", requireAuth, async (req, res, next) => {
-    try {
-        const me = Number(req.user.id);
-        const other = Number(req.params.userId);
+            const result =
+                await pool.query(
+                    `
+                    SELECT
+                        u.id,
+                        u.name,
+                        u.avatar_url,
+                        u.created_at
 
-        if (!Number.isInteger(other) || other <= 0 || other === me) {
-            return res.status(400).json({ error: "Demande d’amitié invalide." });
+                    FROM users u
+
+                    JOIN friendships f ON (
+                        (f.requester_id = $1 AND f.addressee_id = u.id)
+                        OR
+                        (f.addressee_id = $1 AND f.requester_id = u.id)
+                    )
+
+                    WHERE f.status = 'accepted'
+
+                    ORDER BY
+                        u.name ASC
+                    `,
+                    [req.user.id]
+                );
+
+
+            res.json({
+                friends:
+                    result.rows
+            });
+
+        } catch (err) {
+
+            next(err);
+
         }
 
-        const user = await pool.query("SELECT id FROM users WHERE id=$1", [other]);
-        if (!user.rows.length) {
-            return res.status(404).json({ error: "Utilisateur introuvable." });
-        }
-
-        // إذا كان هناك طلب من الطرف الآخر إلى المستخدم الحالي، يتم Accepter la demande
-        // مباشرة عند الضغط على «Ajouter comme ami». هذا يجعل الإضافة تعمل في الاتجاهين.
-        const reversePending = await pool.query(`
-            SELECT id, requester_id, addressee_id, status
-            FROM friendships
-            WHERE requester_id=$1 AND addressee_id=$2 AND status='pending'
-            LIMIT 1
-        `, [other, me]);
-
-        if (reversePending.rows.length) {
-            const accepted = await pool.query(`
-                UPDATE friendships
-                SET status='accepted', updated_at=NOW()
-                WHERE id=$1
-                RETURNING *
-            `, [reversePending.rows[0].id]);
-            return res.json({ ok: true, accepted: true, friendship: accepted.rows[0] });
-        }
-
-        const existing = await pool.query(`
-            SELECT id, requester_id, addressee_id, status
-            FROM friendships
-            WHERE (requester_id=$1 AND addressee_id=$2)
-               OR (requester_id=$2 AND addressee_id=$1)
-            ORDER BY id DESC
-            LIMIT 1
-        `, [me, other]);
-
-        if (existing.rows.length) {
-            const f = existing.rows[0];
-            if (f.status === "accepted") {
-                return res.status(400).json({ error: "Vous êtes déjà amis." });
-            }
-            if (f.status === "pending") {
-                return res.status(400).json({ error: "La demande d’amitié a déjà été envoyée." });
-            }
-            await pool.query("DELETE FROM friendships WHERE id=$1", [f.id]);
-        }
-
-        const r = await pool.query(`
-            INSERT INTO friendships(requester_id, addressee_id, status)
-            VALUES($1,$2,'pending')
-            RETURNING *
-        `, [me, other]);
-
-        res.json({ ok: true, sent: true, friendship: r.rows[0] });
-    } catch (err) {
-        console.error("Friend request error:", err);
-        next(err);
     }
-});
+);
 
-app.post("/api/friends/accept/:id", requireAuth, async (req, res, next) => {
-    try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
-            return res.status(400).json({ error: "ID de demande d’amitié invalide." });
+
+app.get(
+    "/api/friends/requests",
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
+
+        try {
+
+            const result =
+                await pool.query(
+                    `
+                    SELECT
+                        f.id,
+                        f.requester_id,
+                        f.created_at,
+                        u.name,
+                        u.avatar_url
+
+                    FROM friendships f
+
+                    JOIN users u
+                        ON u.id =
+                            f.requester_id
+
+                    WHERE
+                        f.addressee_id = $1
+                        AND
+                        f.status = 'pending'
+
+                    ORDER BY
+                        f.created_at DESC
+                    `,
+                    [req.user.id]
+                );
+
+
+            const sent =
+                await pool.query(
+                    `
+                    SELECT
+                        f.id,
+                        f.addressee_id,
+                        f.created_at,
+                        u.name,
+                        u.avatar_url
+
+                    FROM friendships f
+
+                    JOIN users u
+                        ON u.id =
+                            f.addressee_id
+
+                    WHERE
+                        f.requester_id = $1
+                        AND
+                        f.status = 'pending'
+
+                    ORDER BY
+                        f.created_at DESC
+                    `,
+                    [req.user.id]
+                );
+
+
+            res.json({
+                incoming:
+                    result.rows,
+
+                outgoing:
+                    sent.rows
+            });
+
+        } catch (err) {
+
+            next(err);
+
         }
 
-        const r = await pool.query(`
-            UPDATE friendships
-            SET status='accepted', updated_at=NOW()
-            WHERE id=$1 AND addressee_id=$2 AND status='pending'
-            RETURNING id, requester_id, addressee_id, status, created_at, updated_at
-        `, [id, Number(req.user.id)]);
-
-        if (!r.rows.length) {
-            return res.status(404).json({ error: "La demande d’amitié est introuvable ou a déjà été traitée." });
-        }
-
-        res.json({ ok: true, friendship: r.rows[0] });
-    } catch (err) {
-        console.error("Friend accept error:", err);
-        next(err);
     }
-});
+);
 
-app.delete("/api/friends/:userId", requireAuth, async (req, res, next) => {
-    try {
-        const other = Number(req.params.userId);
-        await pool.query(`
-            DELETE FROM friendships
-            WHERE ((requester_id=$1 AND addressee_id=$2)
-                OR (requester_id=$2 AND addressee_id=$1))
-              AND status='accepted'
-        `, [req.user.id, other]);
-        res.json({ ok: true });
-    } catch (err) { next(err); }
-});
+
+app.post(
+    "/api/friends/request/:userId",
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
+
+        try {
+
+            const me =
+                Number(
+                    req.user.id
+                );
+
+            const other =
+                Number(
+                    req.params.userId
+                );
+
+
+            if (
+                !Number.isInteger(other) ||
+                other <= 0 ||
+                other === me
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "Demande d’amitié invalide."
+                    });
+
+            }
+
+
+            const user =
+                await pool.query(
+                    "SELECT id FROM users WHERE id=$1",
+                    [other]
+                );
+
+
+            if (
+                !user.rows.length
+            ) {
+
+                return res
+                    .status(404)
+                    .json({
+                        error:
+                            "Utilisateur introuvable."
+                    });
+
+            }
+
+
+            const reversePending =
+                await pool.query(
+                    `
+                    SELECT
+                        id,
+                        requester_id,
+                        addressee_id,
+                        status
+
+                    FROM friendships
+
+                    WHERE
+                        requester_id=$1
+                        AND
+                        addressee_id=$2
+                        AND
+                        status='pending'
+
+                    LIMIT 1
+                    `,
+                    [
+                        other,
+                        me
+                    ]
+                );
+
+
+            if (
+                reversePending.rows.length
+            ) {
+
+                const accepted =
+                    await pool.query(
+                        `
+                        UPDATE friendships
+
+                        SET
+                            status='accepted',
+                            updated_at=NOW()
+
+                        WHERE id=$1
+
+                        RETURNING *
+                        `,
+                        [
+                            reversePending.rows[0].id
+                        ]
+                    );
+
+
+                return res.json({
+                    ok:
+                        true,
+
+                    accepted:
+                        true,
+
+                    friendship:
+                        accepted.rows[0]
+                });
+
+            }
+
+
+            const existing =
+                await pool.query(
+                    `
+                    SELECT
+                        id,
+                        requester_id,
+                        addressee_id,
+                        status
+
+                    FROM friendships
+
+                    WHERE
+                        (
+                            requester_id=$1
+                            AND
+                            addressee_id=$2
+                        )
+
+                        OR
+
+                        (
+                            requester_id=$2
+                            AND
+                            addressee_id=$1
+                        )
+
+                    ORDER BY
+                        id DESC
+
+                    LIMIT 1
+                    `,
+                    [
+                        me,
+                        other
+                    ]
+                );
+
+
+            if (
+                existing.rows.length
+            ) {
+
+                const f =
+                    existing.rows[0];
+
+
+                if (
+                    f.status ===
+                    "accepted"
+                ) {
+
+                    return res
+                        .status(400)
+                        .json({
+                            error:
+                                "Vous êtes déjà amis."
+                        });
+
+                }
+
+
+                if (
+                    f.status ===
+                    "pending"
+                ) {
+
+                    return res
+                        .status(400)
+                        .json({
+                            error:
+                                "La demande d’amitié a déjà été envoyée."
+                        });
+
+                }
+
+
+                await pool.query(
+                    "DELETE FROM friendships WHERE id=$1",
+                    [f.id]
+                );
+
+            }
+
+
+            const r =
+                await pool.query(
+                    `
+                    INSERT INTO friendships(
+                        requester_id,
+                        addressee_id,
+                        status
+                    )
+
+                    VALUES(
+                        $1,
+                        $2,
+                        'pending'
+                    )
+
+                    RETURNING *
+                    `,
+                    [
+                        me,
+                        other
+                    ]
+                );
+
+
+            res.json({
+                ok:
+                    true,
+
+                sent:
+                    true,
+
+                friendship:
+                    r.rows[0]
+            });
+
+        } catch (err) {
+
+            console.error(
+                "Friend request error:",
+                err
+            );
+
+            next(err);
+
+        }
+
+    }
+);
+
+
+app.post(
+    "/api/friends/accept/:id",
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
+
+        try {
+
+            const id =
+                Number(
+                    req.params.id
+                );
+
+
+            if (
+                !Number.isInteger(id) ||
+                id <= 0
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "ID de demande d’amitié invalide."
+                    });
+
+            }
+
+
+            const r =
+                await pool.query(
+                    `
+                    UPDATE friendships
+
+                    SET
+                        status='accepted',
+                        updated_at=NOW()
+
+                    WHERE
+                        id=$1
+                        AND
+                        addressee_id=$2
+                        AND
+                        status='pending'
+
+                    RETURNING
+                        id,
+                        requester_id,
+                        addressee_id,
+                        status,
+                        created_at,
+                        updated_at
+                    `,
+                    [
+                        id,
+                        Number(req.user.id)
+                    ]
+                );
+
+
+            if (
+                !r.rows.length
+            ) {
+
+                return res
+                    .status(404)
+                    .json({
+                        error:
+                            "La demande d’amitié est introuvable ou a déjà été traitée."
+                    });
+
+            }
+
+
+            res.json({
+                ok:
+                    true,
+
+                friendship:
+                    r.rows[0]
+            });
+
+        } catch (err) {
+
+            console.error(
+                "Friend accept error:",
+                err
+            );
+
+            next(err);
+
+        }
+
+    }
+);
+
+
+app.delete(
+    "/api/friends/:userId",
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
+
+        try {
+
+            const other =
+                Number(
+                    req.params.userId
+                );
+
+
+            await pool.query(
+                `
+                DELETE FROM friendships
+
+                WHERE
+                    (
+                        (requester_id=$1 AND addressee_id=$2)
+
+                        OR
+
+                        (requester_id=$2 AND addressee_id=$1)
+                    )
+
+                    AND
+
+                    status='accepted'
+                `,
+                [
+                    req.user.id,
+                    other
+                ]
+            );
+
+
+            res.json({
+                ok:
+                    true
+            });
+
+        } catch (err) {
+
+            next(err);
+
+        }
+
+    }
+);
+
 
 /* =========================================================
    مجموعات الدردشة
 ========================================================= */
 
-app.get("/api/groups", requireAuth, async (req, res, next) => {
-    try {
-        const result = await pool.query(`
-            SELECT
-                g.id,
-                g.name,
-                g.owner_id,
-                g.created_at,
-                COUNT(DISTINCT gm2.user_id)::int AS member_count,
-                COALESCE(MAX(gmsg.created_at), g.created_at) AS last_activity
-            FROM group_chats g
-            JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $1
-            LEFT JOIN group_members gm2 ON gm2.group_id = g.id
-            LEFT JOIN group_messages gmsg ON gmsg.group_id = g.id
-            GROUP BY g.id
-            ORDER BY last_activity DESC, g.id DESC
-        `, [Number(req.user.id)]);
-        res.json({ groups: result.rows });
-    } catch (err) { next(err); }
-});
+app.get(
+    "/api/groups",
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
 
-app.post("/api/groups", writeLimiter, requireAuth, async (req, res, next) => {
-    const client = await pool.connect();
-    try {
-        const name = String(req.body?.name || "").trim();
-        let memberIds = Array.isArray(req.body?.member_ids) ? req.body.member_ids : [];
-        memberIds = [...new Set(memberIds.map(Number).filter(Number.isInteger).filter(id => id > 0))];
-        const me = Number(req.user.id);
+        try {
 
-        if (name.length < 2 || name.length > 80) {
-            return res.status(400).json({ error: "Le nom du groupe doit contenir entre 2 et 80 caractères." });
-        }
-        memberIds = memberIds.filter(id => id !== me);
-        if (memberIds.length < 2) {
-            return res.status(400).json({ error: "Choisissez au moins deux amis pour créer un groupe." });
-        }
-        if (memberIds.length > 49) {
-            return res.status(400).json({ error: "Vous pouvez ajouter au maximum 49 amis en plus du créateur du groupe." });
-        }
+            const result =
+                await pool.query(
+                    `
+                    SELECT
+                        g.id,
+                        g.name,
+                        g.owner_id,
+                        g.created_at,
 
-        const friends = await pool.query(`
-            SELECT u.id
-            FROM users u
-            JOIN friendships f ON (
-                (f.requester_id=$1 AND f.addressee_id=u.id) OR
-                (f.addressee_id=$1 AND f.requester_id=u.id)
-            )
-            WHERE f.status='accepted' AND u.id = ANY($2::bigint[])
-        `, [me, memberIds]);
+                        COUNT(
+                            DISTINCT gm2.user_id
+                        )::int AS member_count,
 
-        if (friends.rows.length !== memberIds.length) {
-            return res.status(400).json({ error: "Vous pouvez uniquement ajouter vos amis au groupe." });
-        }
+                        COALESCE(
+                            MAX(gmsg.created_at),
+                            g.created_at
+                        ) AS last_activity
 
-        await client.query("BEGIN");
-        const group = await client.query(`
-            INSERT INTO group_chats(name, owner_id)
-            VALUES($1,$2)
-            RETURNING id, name, owner_id, created_at
-        `, [name, me]);
+                    FROM group_chats g
 
-        await client.query(`
-            INSERT INTO group_members(group_id, user_id, role)
-            VALUES($1,$2,'owner')
-        `, [group.rows[0].id, me]);
+                    JOIN group_members gm
+                        ON gm.group_id = g.id
+                        AND gm.user_id = $1
 
-        for (const id of memberIds) {
-            await client.query(`
-                INSERT INTO group_members(group_id, user_id, role)
-                VALUES($1,$2,'member')
-            `, [group.rows[0].id, id]);
+                    LEFT JOIN group_members gm2
+                        ON gm2.group_id = g.id
+
+                    LEFT JOIN group_messages gmsg
+                        ON gmsg.group_id = g.id
+
+                    GROUP BY
+                        g.id
+
+                    ORDER BY
+                        last_activity DESC,
+                        g.id DESC
+                    `,
+                    [
+                        Number(
+                            req.user.id
+                        )
+                    ]
+                );
+
+
+            res.json({
+                groups:
+                    result.rows
+            });
+
+        } catch (err) {
+
+            next(err);
+
         }
 
-        await client.query("COMMIT");
-        res.status(201).json({ ok: true, group: { ...group.rows[0], member_count: memberIds.length + 1 } });
-    } catch (err) {
-        await client.query("ROLLBACK").catch(() => {});
-        next(err);
-    } finally {
-        client.release();
     }
-});
+);
 
-app.get("/api/groups/:groupId", requireAuth, async (req, res, next) => {
-    try {
-        const groupId = Number(req.params.groupId);
-        if (!Number.isInteger(groupId) || groupId <= 0) return res.status(400).json({ error: "ID de groupe invalide." });
 
-        const group = await pool.query(`
-            SELECT g.id, g.name, g.owner_id, g.created_at,
-                   COUNT(gm.user_id)::int AS member_count
-            FROM group_chats g
-            JOIN group_members mine ON mine.group_id=g.id AND mine.user_id=$2
-            LEFT JOIN group_members gm ON gm.group_id=g.id
-            WHERE g.id=$1
-            GROUP BY g.id
-        `, [groupId, Number(req.user.id)]);
-        if (!group.rows.length) return res.status(404).json({ error: "Le groupe est introuvable ou vous n’en êtes pas membre." });
+app.post(
+    "/api/groups",
+    writeLimiter,
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
 
-        const members = await pool.query(`
-            SELECT u.id, u.name, u.avatar_url, gm.role, gm.joined_at
-            FROM group_members gm JOIN users u ON u.id=gm.user_id
-            WHERE gm.group_id=$1
-            ORDER BY CASE WHEN gm.role='owner' THEN 0 ELSE 1 END, u.name ASC
-        `, [groupId]);
+        const client =
+            await pool.connect();
 
-        res.json({ group: group.rows[0], members: members.rows });
-    } catch (err) { next(err); }
-});
+        try {
 
-app.get("/api/groups/:groupId/messages", requireAuth, async (req, res, next) => {
-    try {
-        const groupId = Number(req.params.groupId);
-        if (!Number.isInteger(groupId) || groupId <= 0) return res.status(400).json({ error: "ID de groupe invalide." });
-        const member = await pool.query(`SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2`, [groupId, Number(req.user.id)]);
-        if (!member.rows.length) return res.status(403).json({ error: "Seuls les membres du groupe peuvent voir les messages." });
+            const name =
+                String(
+                    req.body?.name ||
+                    ""
+                ).trim();
 
-        const result = await pool.query(`
-            SELECT gm.id, gm.group_id, gm.sender_id, gm.body, gm.created_at,
-                   u.name AS sender, u.avatar_url AS sender_avatar
-            FROM group_messages gm
-            JOIN users u ON u.id=gm.sender_id
-            WHERE gm.group_id=$1
-            ORDER BY gm.created_at ASC
-            LIMIT 1000
-        `, [groupId]);
-        res.json({ messages: result.rows });
-    } catch (err) { next(err); }
-});
 
-app.post("/api/groups/:groupId/messages", writeLimiter, requireAuth, async (req, res, next) => {
-    try {
-        const groupId = Number(req.params.groupId);
-        const body = String(req.body?.body || "").trim();
-        if (!Number.isInteger(groupId) || groupId <= 0) return res.status(400).json({ error: "ID de groupe invalide." });
-        if (!body) return res.status(400).json({ error: "Le message est vide." });
-        if (body.length > 2000) return res.status(400).json({ error: "Le message est trop long." });
-        const member = await pool.query(`SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2`, [groupId, Number(req.user.id)]);
-        if (!member.rows.length) return res.status(403).json({ error: "Seuls les membres du groupe peuvent envoyer des messages." });
+            let memberIds =
+                Array.isArray(
+                    req.body?.member_ids
+                )
+                    ? req.body.member_ids
+                    : [];
 
-        const result = await pool.query(`
-            INSERT INTO group_messages(group_id, sender_id, body)
-            VALUES($1,$2,$3)
-            RETURNING id, group_id, sender_id, body, created_at
-        `, [groupId, Number(req.user.id), body]);
-        res.json({ ok: true, message: result.rows[0] });
-    } catch (err) { next(err); }
-});
+
+            memberIds =
+                [
+                    ...new Set(
+                        memberIds
+                            .map(Number)
+                            .filter(
+                                Number.isInteger
+                            )
+                            .filter(
+                                id =>
+                                    id > 0
+                            )
+                    )
+                ];
+
+
+            const me =
+                Number(
+                    req.user.id
+                );
+
+
+            if (
+                name.length < 2 ||
+                name.length > 80
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "Le nom du groupe doit contenir entre 2 et 80 caractères."
+                    });
+
+            }
+
+
+            memberIds =
+                memberIds.filter(
+                    id =>
+                        id !== me
+                );
+
+
+            if (
+                memberIds.length < 2
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "Choisissez au moins deux amis pour créer un groupe."
+                    });
+
+            }
+
+
+            if (
+                memberIds.length > 49
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "Vous pouvez ajouter au maximum 49 amis en plus du créateur du groupe."
+                    });
+
+            }
+
+
+            const friends =
+                await pool.query(
+                    `
+                    SELECT u.id
+
+                    FROM users u
+
+                    JOIN friendships f ON (
+                        (f.requester_id=$1 AND f.addressee_id=u.id)
+
+                        OR
+
+                        (f.addressee_id=$1 AND f.requester_id=u.id)
+                    )
+
+                    WHERE
+                        f.status='accepted'
+
+                        AND
+
+                        u.id =
+                            ANY($2::bigint[])
+                    `,
+                    [
+                        me,
+                        memberIds
+                    ]
+                );
+
+
+            if (
+                friends.rows.length !==
+                memberIds.length
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "Vous pouvez uniquement ajouter vos amis au groupe."
+                    });
+
+            }
+
+
+            await client.query(
+                "BEGIN"
+            );
+
+
+            const group =
+                await client.query(
+                    `
+                    INSERT INTO group_chats(
+                        name,
+                        owner_id
+                    )
+
+                    VALUES(
+                        $1,
+                        $2
+                    )
+
+                    RETURNING
+                        id,
+                        name,
+                        owner_id,
+                        created_at
+                    `,
+                    [
+                        name,
+                        me
+                    ]
+                );
+
+
+            await client.query(
+                `
+                INSERT INTO group_members(
+                    group_id,
+                    user_id,
+                    role
+                )
+
+                VALUES(
+                    $1,
+                    $2,
+                    'owner'
+                )
+                `,
+                [
+                    group.rows[0].id,
+                    me
+                ]
+            );
+
+
+            for (
+                const id
+                of memberIds
+            ) {
+
+                await client.query(
+                    `
+                    INSERT INTO group_members(
+                        group_id,
+                        user_id,
+                        role
+                    )
+
+                    VALUES(
+                        $1,
+                        $2,
+                        'member'
+                    )
+                    `,
+                    [
+                        group.rows[0].id,
+                        id
+                    ]
+                );
+
+            }
+
+
+            await client.query(
+                "COMMIT"
+            );
+
+
+            res
+                .status(201)
+                .json({
+                    ok:
+                        true,
+
+                    group: {
+                        ...group.rows[0],
+
+                        member_count:
+                            memberIds.length +
+                            1
+                    }
+                });
+
+        } catch (err) {
+
+            await client
+                .query(
+                    "ROLLBACK"
+                )
+                .catch(
+                    () => {}
+                );
+
+            next(err);
+
+        } finally {
+
+            client.release();
+
+        }
+
+    }
+);
+
+
+app.get(
+    "/api/groups/:groupId",
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
+
+        try {
+
+            const groupId =
+                Number(
+                    req.params.groupId
+                );
+
+
+            if (
+                !Number.isInteger(groupId) ||
+                groupId <= 0
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "ID de groupe invalide."
+                    });
+
+            }
+
+
+            const group =
+                await pool.query(
+                    `
+                    SELECT
+                        g.id,
+                        g.name,
+                        g.owner_id,
+                        g.created_at,
+
+                        COUNT(
+                            gm.user_id
+                        )::int AS member_count
+
+                    FROM group_chats g
+
+                    JOIN group_members mine
+                        ON mine.group_id=g.id
+                        AND mine.user_id=$2
+
+                    LEFT JOIN group_members gm
+                        ON gm.group_id=g.id
+
+                    WHERE
+                        g.id=$1
+
+                    GROUP BY
+                        g.id
+                    `,
+                    [
+                        groupId,
+                        Number(
+                            req.user.id
+                        )
+                    ]
+                );
+
+
+            if (
+                !group.rows.length
+            ) {
+
+                return res
+                    .status(404)
+                    .json({
+                        error:
+                            "Le groupe est introuvable ou vous n’en êtes pas membre."
+                    });
+
+            }
+
+
+            const members =
+                await pool.query(
+                    `
+                    SELECT
+                        u.id,
+                        u.name,
+                        u.avatar_url,
+                        gm.role,
+                        gm.joined_at
+
+                    FROM group_members gm
+
+                    JOIN users u
+                        ON u.id=gm.user_id
+
+                    WHERE
+                        gm.group_id=$1
+
+                    ORDER BY
+                        CASE
+                            WHEN gm.role='owner'
+                            THEN 0
+                            ELSE 1
+                        END,
+                        u.name ASC
+                    `,
+                    [
+                        groupId
+                    ]
+                );
+
+
+            res.json({
+                group:
+                    group.rows[0],
+
+                members:
+                    members.rows
+            });
+
+        } catch (err) {
+
+            next(err);
+
+        }
+
+    }
+);
+
+
+app.get(
+    "/api/groups/:groupId/messages",
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
+
+        try {
+
+            const groupId =
+                Number(
+                    req.params.groupId
+                );
+
+
+            if (
+                !Number.isInteger(groupId) ||
+                groupId <= 0
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "ID de groupe invalide."
+                    });
+
+            }
+
+
+            const member =
+                await pool.query(
+                    `
+                    SELECT 1
+
+                    FROM group_members
+
+                    WHERE
+                        group_id=$1
+                        AND
+                        user_id=$2
+                    `,
+                    [
+                        groupId,
+                        Number(
+                            req.user.id
+                        )
+                    ]
+                );
+
+
+            if (
+                !member.rows.length
+            ) {
+
+                return res
+                    .status(403)
+                    .json({
+                        error:
+                            "Seuls les membres du groupe peuvent voir les messages."
+                    });
+
+            }
+
+
+            const result =
+                await pool.query(
+                    `
+                    SELECT
+                        gm.id,
+                        gm.group_id,
+                        gm.sender_id,
+                        gm.body,
+                        gm.created_at,
+
+                        u.name AS sender,
+                        u.avatar_url AS sender_avatar
+
+                    FROM group_messages gm
+
+                    JOIN users u
+                        ON u.id=gm.sender_id
+
+                    WHERE
+                        gm.group_id=$1
+
+                    ORDER BY
+                        gm.created_at ASC
+
+                    LIMIT 1000
+                    `,
+                    [
+                        groupId
+                    ]
+                );
+
+
+            res.json({
+                messages:
+                    result.rows
+            });
+
+        } catch (err) {
+
+            next(err);
+
+        }
+
+    }
+);
+
+
+app.post(
+    "/api/groups/:groupId/messages",
+    writeLimiter,
+    requireAuth,
+    async (
+        req,
+        res,
+        next
+    ) => {
+
+        try {
+
+            const groupId =
+                Number(
+                    req.params.groupId
+                );
+
+
+            const body =
+                String(
+                    req.body?.body ||
+                    ""
+                ).trim();
+
+
+            if (
+                !Number.isInteger(groupId) ||
+                groupId <= 0
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "ID de groupe invalide."
+                    });
+
+            }
+
+
+            if (!body) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "Le message est vide."
+                    });
+
+            }
+
+
+            if (
+                body.length > 2000
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+                        error:
+                            "Le message est trop long."
+                    });
+
+            }
+
+
+            const member =
+                await pool.query(
+                    `
+                    SELECT 1
+
+                    FROM group_members
+
+                    WHERE
+                        group_id=$1
+                        AND
+                        user_id=$2
+                    `,
+                    [
+                        groupId,
+                        Number(
+                            req.user.id
+                        )
+                    ]
+                );
+
+
+            if (
+                !member.rows.length
+            ) {
+
+                return res
+                    .status(403)
+                    .json({
+                        error:
+                            "Seuls les membres du groupe peuvent envoyer des messages."
+                    });
+
+            }
+
+
+            const result =
+                await pool.query(
+                    `
+                    INSERT INTO group_messages(
+                        group_id,
+                        sender_id,
+                        body
+                    )
+
+                    VALUES(
+                        $1,
+                        $2,
+                        $3
+                    )
+
+                    RETURNING
+                        id,
+                        group_id,
+                        sender_id,
+                        body,
+                        created_at
+                    `,
+                    [
+                        groupId,
+                        Number(
+                            req.user.id
+                        ),
+                        body
+                    ]
+                );
+
+
+            res.json({
+                ok:
+                    true,
+
+                message:
+                    result.rows[0]
+            });
+
+        } catch (err) {
+
+            next(err);
+
+        }
+
+    }
+);
+
 
 /* =========================================================
    الملفات الثابتة
