@@ -9,7 +9,6 @@ const rateLimit = require("express-rate-limit");
 const multer = require("multer");
 const { Pool } = require("pg");
 const { v2: cloudinary } = require("cloudinary");
-const nodemailer = require("nodemailer");
 
 
 /* =========================================================
@@ -130,19 +129,37 @@ const SITE_PASSWORD =
     process.env.SITE_PASSWORD ||
     "Boss2026";
 
-const SMTP_HOST = String(process.env.SMTP_HOST || "").trim();
-const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
-const SMTP_USER = String(process.env.SMTP_USER || "").trim();
-const SMTP_PASSWORD = String(process.env.SMTP_PASSWORD || "");
-const SMTP_FROM = String(process.env.SMTP_FROM || SMTP_USER).trim();
-const mailer = SMTP_HOST && SMTP_USER && SMTP_PASSWORD ? nodemailer.createTransport({
-    host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_PORT === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASSWORD }
-}) : null;
+const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
+const RESEND_FROM = String(process.env.RESEND_FROM || "onboarding@resend.dev").trim();
 function normalizeEmail(value) { return String(value || "").trim().toLowerCase(); }
 function hashPassword(password) { return new Promise((resolve,reject)=>{ const salt=crypto.randomBytes(16); crypto.scrypt(String(password),salt,64,(err,derived)=>err?reject(err):resolve(`${salt.toString("hex")}:${derived.toString("hex")}`)); }); }
 function verifyPassword(password,stored) { return new Promise((resolve,reject)=>{ try { const [saltHex,hashHex]=String(stored||"").split(":"); if(!saltHex||!hashHex)return resolve(false); const salt=Buffer.from(saltHex,"hex"), expected=Buffer.from(hashHex,"hex"); crypto.scrypt(String(password),salt,expected.length,(err,derived)=>{ if(err)return reject(err); resolve(derived.length===expected.length&&crypto.timingSafeEqual(derived,expected)); }); } catch(e){reject(e);} }); }
-async function sendVerificationEmail(email,code) { if(!mailer) throw new Error("Le service e-mail n’est pas configuré sur le serveur."); await mailer.sendMail({from:SMTP_FROM,to:email,subject:"Votre code de vérification SecretNet",text:`Votre code de vérification SecretNet est : ${code}\n\nCe code expire dans 10 minutes.`,html:`<p>Votre code de vérification SecretNet est :</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>Ce code expire dans 10 minutes.</p>`}); }
+async function sendVerificationEmail(email,code) {
+    if (!RESEND_API_KEY) throw new Error("Le service e-mail n’est pas configuré sur le serveur.");
+
+    const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${RESEND_API_KEY}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            from: RESEND_FROM,
+            to: [email],
+            subject: "Votre code de vérification SecretNet",
+            text: `Votre code de vérification SecretNet est : ${code}\n\nCe code expire dans 10 minutes.`,
+            html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>SecretNet</h2><p>Votre code de vérification est :</p><p style="font-size:32px;font-weight:bold;letter-spacing:8px">${code}</p><p>Ce code expire dans 10 minutes.</p></div>`
+        })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const message = payload?.message || payload?.error || `Resend HTTP ${response.status}`;
+        throw new Error(`Échec de l’envoi de l’e-mail : ${message}`);
+    }
+
+    return payload;
+}
 
 
 // Nom exact du compte qui possède les droits Admin.
@@ -1289,13 +1306,19 @@ app.post("/api/register", authLimiter, async (req, res, next) => {
         if (name.length < 2 || name.length > 30) return res.status(400).json({ error: "Le nom doit contenir entre 2 et 30 caractères." });
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Adresse e-mail invalide." });
         if (password.length < 8) return res.status(400).json({ error: "Le mot de passe doit contenir au moins 8 caractères." });
-        const existing = await pool.query("SELECT id,password_hash FROM users WHERE LOWER(name)=LOWER($1) LIMIT 1",[name]);
-        if (existing.rows.length && existing.rows[0].password_hash) return res.status(409).json({ error: "Ce nom de compte existe déjà. Utilisez Connexion." });
-        const emailOwner = await pool.query("SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND id <> COALESCE($2,0) LIMIT 1",[email,existing.rows[0]?.id||0]);
+        const existing = await pool.query("SELECT id,password_hash,email,email_verified FROM users WHERE LOWER(name)=LOWER($1) LIMIT 1",[name]);
+        const existingUser = existing.rows[0] || null;
+        if (existingUser?.password_hash && existingUser.email_verified) {
+            return res.status(409).json({ error: "Ce nom de compte existe déjà. Utilisez Connexion." });
+        }
+        if (existingUser?.password_hash && !existingUser.email_verified && normalizeEmail(existingUser.email) !== email) {
+            return res.status(409).json({ error: "Ce nom de compte existe déjà. Utilisez une autre adresse e-mail ou vérifiez votre compte." });
+        }
+        const emailOwner = await pool.query("SELECT id,email_verified FROM users WHERE LOWER(email)=LOWER($1) AND id <> COALESCE($2,0) LIMIT 1",[email,existingUser?.id||0]);
         if (emailOwner.rows.length) return res.status(409).json({ error: "Cette adresse e-mail est déjà utilisée." });
         const passwordHash = await hashPassword(password);
-        const user = existing.rows.length
-            ? (await pool.query("UPDATE users SET name=$1,password_hash=$2,email=$3,email_verified=FALSE WHERE id=$4 RETURNING id,name,avatar_url,created_at",[name,passwordHash,email,existing.rows[0].id])).rows[0]
+        const user = existingUser
+            ? (await pool.query("UPDATE users SET name=$1,password_hash=$2,email=$3,email_verified=FALSE WHERE id=$4 RETURNING id,name,avatar_url,created_at",[name,passwordHash,email,existingUser.id])).rows[0]
             : (await pool.query("INSERT INTO users(name,password_hash,email,email_verified) VALUES($1,$2,$3,FALSE) RETURNING id,name,avatar_url,created_at",[name,passwordHash,email])).rows[0];
         const code=String(crypto.randomInt(0,1000000)).padStart(6,"0");
         const codeHash=crypto.createHash("sha256").update(code).digest("hex");

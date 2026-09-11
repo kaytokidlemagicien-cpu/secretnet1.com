@@ -15,8 +15,7 @@
     "express-rate-limit": "^7.1.5",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.11.3",
-    "cloudinary": "^1.41.0",
-    "nodemailer": "^6.9.15"
+    "cloudinary": "^1.41.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.0.0"
