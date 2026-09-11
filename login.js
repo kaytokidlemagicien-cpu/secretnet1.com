@@ -56,6 +56,7 @@ createForm.addEventListener("submit",async ev=>{
  try{
   const r=await fetch(apiUrl("/api/register"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,password,email})});
   const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Impossible de créer le compte.");
+  if(d.token){ await finishLogin(d); return; }
   $("verifyEmail").value=email; sessionStorage.setItem("pendingVerificationEmail",email); show(verifySection);
  }catch(x){showError(x.message||"Impossible de créer le compte.");}finally{b.disabled=false;b.textContent="Créer le compte";}
 });

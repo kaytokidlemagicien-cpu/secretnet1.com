@@ -131,6 +131,7 @@ const SITE_PASSWORD =
 
 const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
 const RESEND_FROM = String(process.env.RESEND_FROM || "onboarding@resend.dev").trim();
+const ALLOW_UNVERIFIED_EMAIL_FALLBACK = String(process.env.ALLOW_UNVERIFIED_EMAIL_FALLBACK || "true").toLowerCase() !== "false";
 function normalizeEmail(value) { return String(value || "").trim().toLowerCase(); }
 function hashPassword(password) { return new Promise((resolve,reject)=>{ const salt=crypto.randomBytes(16); crypto.scrypt(String(password),salt,64,(err,derived)=>err?reject(err):resolve(`${salt.toString("hex")}:${derived.toString("hex")}`)); }); }
 function verifyPassword(password,stored) { return new Promise((resolve,reject)=>{ try { const [saltHex,hashHex]=String(stored||"").split(":"); if(!saltHex||!hashHex)return resolve(false); const salt=Buffer.from(saltHex,"hex"), expected=Buffer.from(hashHex,"hex"); crypto.scrypt(String(password),salt,expected.length,(err,derived)=>{ if(err)return reject(err); resolve(derived.length===expected.length&&crypto.timingSafeEqual(derived,expected)); }); } catch(e){reject(e);} }); }
@@ -1324,8 +1325,21 @@ app.post("/api/register", authLimiter, async (req, res, next) => {
         const codeHash=crypto.createHash("sha256").update(code).digest("hex");
         await pool.query("DELETE FROM email_verifications WHERE user_id=$1",[user.id]);
         await pool.query("INSERT INTO email_verifications(user_id,email,code_hash,expires_at) VALUES($1,$2,$3,NOW()+INTERVAL '10 minutes')",[user.id,email,codeHash]);
-        await sendVerificationEmail(email,code);
-        res.json({ok:true,requiresVerification:true,email});
+
+        try {
+            await sendVerificationEmail(email,code);
+            return res.json({ok:true,requiresVerification:true,email});
+        } catch (mailErr) {
+            if (!ALLOW_UNVERIFIED_EMAIL_FALLBACK) throw mailErr;
+            // Mode gratuit : si Resend refuse l'envoi (domaine non vérifié/test mode),
+            // l'inscription ne doit pas être bloquée.
+            console.warn("⚠️ E-mail de vérification non envoyé; mode secours gratuit activé:", mailErr.message);
+            await pool.query("DELETE FROM email_verifications WHERE user_id=$1",[user.id]);
+            await pool.query("UPDATE users SET email_verified=TRUE WHERE id=$1",[user.id]);
+            const rawToken=createToken();
+            await pool.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '30 days')",[hashToken(rawToken),user.id]);
+            return res.json({ok:true,requiresVerification:false,email,token:rawToken,user:{id:user.id,name:user.name,avatar_url:user.avatar_url||"",created_at:user.created_at},emailVerificationSkipped:true});
+        }
     } catch(err){ next(err); }
 });
 
