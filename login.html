@@ -1,1 +1,51 @@
-<!doctype html><html lang="fr" dir="ltr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connexion - SocialNet</title><link rel="stylesheet" href="/style.css"></head><body class="login-page"><main class="login-card"><div class="login-logo">SN</div><h1>Bienvenue sur SocialNet</h1><p>Votre réseau social privé. Entrez votre nom et le mot de passe du site pour continuer.</p><form id="loginForm"><input id="userName" maxlength="30" autocomplete="name" placeholder="Votre nom" required><input id="sitePassword" type="password" autocomplete="current-password" placeholder="Mot de passe du site" required><button id="loginButton">Se connecter à SocialNet</button></form><div id="loginError" class="error"></div></main><script src="/login.js"></script></body></html>
+<!doctype html>
+<html lang="fr" dir="ltr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connexion - SocialNet</title><link rel="stylesheet" href="/style.css">
+<style>
+.auth-switch{margin-top:18px;text-align:center}.auth-switch button{background:none;border:0;color:#2563eb;cursor:pointer;font:inherit;text-decoration:underline}
+.auth-card{max-width:460px}.auth-note{font-size:13px;color:#666;margin:8px 0}.hidden{display:none!important}
+</style>
+</head>
+<body class="login-page">
+<main class="login-card auth-card">
+<div class="login-logo">SN</div>
+<section id="loginSection">
+<h1>Bienvenue sur SocialNet</h1>
+<p>Connectez-vous avec le nom de votre compte et votre mot de passe.</p>
+<form id="loginForm">
+<input id="userName" maxlength="30" autocomplete="username" placeholder="Nom du compte" required>
+<input id="sitePassword" type="password" autocomplete="current-password" placeholder="Mot de passe" required>
+<button id="loginButton" type="submit">Se connecter</button>
+</form>
+<div class="auth-switch">Vous n’avez pas de compte ? <button id="showCreate" type="button">Créer un compte</button></div>
+</section>
+<section id="createSection" class="hidden">
+<h1>Créer un compte</h1>
+<p>Choisissez votre nom, votre mot de passe et votre adresse e-mail.</p>
+<form id="createForm">
+<input id="createName" maxlength="30" autocomplete="username" placeholder="Nom du compte" required>
+<input id="createPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Mot de passe secret" required>
+<input id="createPasswordConfirm" type="password" minlength="8" autocomplete="new-password" placeholder="Confirmer le mot de passe" required>
+<input id="createEmail" type="email" maxlength="254" autocomplete="email" placeholder="Votre adresse e-mail" required>
+<button id="createButton" type="submit">Créer le compte</button>
+</form>
+<p class="auth-note">Un code de vérification sera envoyé à votre adresse e-mail.</p>
+<div class="auth-switch">Vous avez déjà un compte ? <button id="showLogin" type="button">Connexion</button></div>
+</section>
+<section id="verifySection" class="hidden">
+<h1>Vérifier votre e-mail</h1>
+<p>Entrez le code reçu par e-mail pour confirmer votre compte.</p>
+<form id="verifyForm">
+<input id="verifyEmail" type="email" readonly>
+<input id="verifyCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Code à 6 chiffres" required>
+<button id="verifyButton" type="submit">Vérifier le code</button>
+</form>
+<div class="auth-switch"><button id="backToCreate" type="button">Modifier les informations</button></div>
+</section>
+<div id="loginError" class="error"></div>
+</main>
+<script src="/login.js"></script>
+</body>
+</html>
